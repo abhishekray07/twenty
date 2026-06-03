@@ -7,6 +7,4 @@ schema_command: "npx nx build twenty-server && npx nx run twenty-server:database
 compose_file: "packages/twenty-docker/docker-compose.dev.yml"
 compose_services: "db redis"
 notes: "Twenty is an open-source CRM monorepo (Nx workspace, Yarn 4, Node 24). Backend on port 3000, frontend on port 3001. The schema_command builds the NestJS server and runs all instance migration commands. The dev_command uses concurrently to start both twenty-server and twenty-front plus the worker."
-env_vars:
-  APP_SECRET: "2e24d06b6a57bfcd1d9a9478bc0a64d3516bb03bb2a28e9c350f765155920f7a"
-  NODE_ENV: "development"
+env_vars: {APP_SECRET: "2e24d06b6a57bfcd1d9a9478bc0a64d3516bb03bb2a28e9c350f765155920f7a", NODE_ENV: "development"}
