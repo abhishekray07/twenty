@@ -1,7 +1,10 @@
 port: 3000
 dockerfile: packages/twenty-docker/twenty/Dockerfile
 build_target: twenty
-services: [postgres, redis]
+services:
+  - type: postgres
+    extensions: [vector, uuid-ossp, unaccent]
+  - redis
 health_path: /healthz
 env:
   NODE_ENV: production
