@@ -1,11 +1,31 @@
-port: 3001
-boot_mode: "compose_then_dev"
-dev_command: "yarn start"
-health_path: "/"
-install_command: "curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash - && sudo apt-get install -y nodejs && yarn install && echo 'NODE_ENV=development' > packages/twenty-server/.env && echo 'PG_DATABASE_URL=postgres://postgres:postgres@localhost:5432/default' >> packages/twenty-server/.env && echo 'REDIS_URL=redis://localhost:6379' >> packages/twenty-server/.env && echo 'APP_SECRET=2e24d06b6a57bfcd1d9a9478bc0a64d3516bb03bb2a28e9c350f765155920f7a' >> packages/twenty-server/.env && echo 'SIGN_IN_PREFILLED=true' >> packages/twenty-server/.env && echo 'IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false' >> packages/twenty-server/.env && echo 'FRONTEND_URL=http://localhost:3001' >> packages/twenty-server/.env && echo 'REACT_APP_SERVER_BASE_URL=http://localhost:3000' > packages/twenty-front/.env"
-schema_command: "npx nx build twenty-server && npx nx run twenty-server:database:init"
-seed_command: npx nx run twenty-server:command -- workspace:seed:dev
-compose_file: "packages/twenty-docker/docker-compose.dev.yml"
-compose_services: "db redis"
-notes: "Twenty is an open-source CRM monorepo (Nx workspace, Yarn 4, Node 24). Backend on port 3000, frontend on port 3001. The schema_command builds the NestJS server and runs all instance migration commands. The dev_command uses concurrently to start both twenty-server and twenty-front plus the worker."
-env_vars: {APP_SECRET: "2e24d06b6a57bfcd1d9a9478bc0a64d3516bb03bb2a28e9c350f765155920f7a", NODE_ENV: "development"}
+port: 3000
+dockerfile: packages/twenty-docker/twenty/Dockerfile
+build_target: twenty
+services: [postgres, redis]
+health_path: /healthz
+env:
+  NODE_ENV: production
+  APP_SECRET: 8f1d2c3b4a5968778695a4b3c2d1e0f1a2b3c4d5e6f70819a2b3c4d5e6f70819
+  SERVER_URL: http://localhost:3000
+  FRONTEND_URL: http://localhost:3000
+  STORAGE_TYPE: local
+  PG_DATABASE_URL: postgres://app:app@pg:5432/app
+  REDIS_URL: redis://redis:6379
+  DISABLE_DB_MIGRATIONS: "false"
+  IS_EMAIL_VERIFICATION_REQUIRED: "false"
+verify_setup:
+  instructions: |
+    Fresh self-hosted Twenty instance with no seeded users. On first visit the
+    app shows the workspace-creation / sign-up flow: choose "Continue with
+    Email", register a new account (e.g. verify@opslane.dev with a strong
+    password), then complete workspace onboarding (workspace name + display
+    name) before exercising acceptance criteria. Email verification is
+    disabled, so sign-up completes immediately. The server self-migrates on
+    boot via its Docker entrypoint.
+notes: |
+  Twenty CRM (Nx monorepo, NestJS server + React front). Dockerfile-first:
+  packages/twenty-docker/twenty/Dockerfile (build target `twenty`) serves the
+  built frontend and API from a single container on port 3000. The image
+  entrypoint runs database migrations when DISABLE_DB_MIGRATIONS=false, so no
+  explicit migrate command is declared. Recipe aliases: postgres at pg:5432
+  (app/app), redis at redis:6379.
