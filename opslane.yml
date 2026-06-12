@@ -16,15 +16,20 @@ env:
   REDIS_URL: redis://redis:6379
   DISABLE_DB_MIGRATIONS: "false"
   IS_EMAIL_VERIFICATION_REQUIRED: "false"
+seed: |
+  set -e
+  cd /app/packages/twenty-server
+  has_schema=$(psql -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'core')" ${PG_DATABASE_URL})
+  if [ "$has_schema" = "f" ]; then yarn database:init:prod; fi
+  yarn command:prod workspace:seed:dev --light
 verify_setup:
   instructions: |
-    Fresh self-hosted Twenty instance with no seeded users. On first visit the
-    app shows the workspace-creation / sign-up flow: choose "Continue with
-    Email", register a new account (e.g. verify@opslane.dev with a strong
-    password), then complete workspace onboarding (workspace name + display
-    name) before exercising acceptance criteria. Email verification is
-    disabled, so sign-up completes immediately. The server self-migrates on
-    boot via its Docker entrypoint.
+    Log in as tim@apple.dev / tim@apple.dev (the seed creates the Apple demo
+    workspace via Twenty's own workspace:seed:dev command, with demo
+    companies, people, opportunities, notes and tasks already present).
+    Choose "Continue with Email" on the sign-in screen, enter the
+    credentials, and you land directly in the workspace — no sign-up or
+    onboarding is needed. Verify through the browser UI only.
 notes: |
   Twenty CRM (Nx monorepo, NestJS server + React front). Dockerfile-first:
   packages/twenty-docker/twenty/Dockerfile (build target `twenty`) serves the
