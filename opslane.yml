@@ -1,3 +1,5 @@
+auth:
+  session_command: node scripts/opslane-session.cjs
 port: 3000
 dockerfile: packages/twenty-docker/twenty/Dockerfile
 build_target: twenty
