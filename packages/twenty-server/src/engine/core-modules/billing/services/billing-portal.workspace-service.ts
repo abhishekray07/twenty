@@ -64,6 +64,9 @@ export class BillingPortalWorkspaceService {
         successUrlPath,
       });
 
+    // A Checkout page opened before the workspace subscribed (another tab) would otherwise add a second subscription
+    this.assertCustomerHasNoActiveSubscription(customer);
+
     const checkoutSession =
       await this.stripeCheckoutService.createCheckoutSession({
         user,
@@ -103,17 +106,7 @@ export class BillingPortalWorkspaceService {
         successUrlPath,
       });
 
-    if (
-      isNonEmptyArray(customer?.billingSubscriptions) &&
-      customer.billingSubscriptions.some(
-        (subscription) => subscription.status !== SubscriptionStatus.Canceled,
-      )
-    ) {
-      throw new BillingException(
-        'Customer already has a non-canceled billing subscription',
-        BillingExceptionCode.BILLING_SUBSCRIPTION_ALREADY_EXISTS,
-      );
-    }
+    this.assertCustomerHasNoActiveSubscription(customer);
 
     const stripeSubscription =
       await this.stripeCheckoutService.createDirectSubscription({
@@ -321,6 +314,22 @@ export class BillingPortalWorkspaceService {
     }
 
     return null;
+  }
+
+  private assertCustomerHasNoActiveSubscription(
+    customer: BillingCustomerEntity | null,
+  ) {
+    if (
+      isNonEmptyArray(customer?.billingSubscriptions) &&
+      customer.billingSubscriptions.some(
+        (subscription) => subscription.status !== SubscriptionStatus.Canceled,
+      )
+    ) {
+      throw new BillingException(
+        'Customer already has a non-canceled billing subscription',
+        BillingExceptionCode.BILLING_SUBSCRIPTION_ALREADY_EXISTS,
+      );
+    }
   }
 
   private async prepareSubscriptionParameters({
