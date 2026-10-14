@@ -1,6 +1,6 @@
 import { getDefaultReactSlashMenuItems } from '@blocknote/react';
 
-import { type SuggestionItem } from '@/blocknote-editor/types/types';
+import { type SuggestionItem } from '@/blocknote-editor/types/SuggestionMenuItems';
 
 import { type BLOCK_SCHEMA } from '@/blocknote-editor/blocks/Schema';
 import {
@@ -25,7 +25,7 @@ import {
   IconPilcrow,
   IconTable,
   IconVideo,
-} from 'twenty-ui/display';
+} from 'twenty-ui/icon';
 
 const Icons: Record<string, IconComponent> = {
   'Heading 1': IconH1,

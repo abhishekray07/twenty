@@ -155,7 +155,7 @@ export class CreateAppCommand {
         syncSucceeded = await this.syncApplication(appDirectory);
 
         if (!syncSucceeded) {
-          this.logDetail('Sync failed. Run `yarn twenty dev --once` manually.');
+          this.logDetail('Sync failed. Run `yarn twenty apply` manually.');
           return;
         }
       } else {
@@ -486,9 +486,9 @@ export class CreateAppCommand {
   }
 
   private async syncApplication(appDirectory: string): Promise<boolean> {
-    this.logDetail('Running `yarn twenty dev --once`...');
+    this.logDetail('Running `yarn twenty apply`...');
     return new Promise((resolve) => {
-      const child = spawn('yarn', ['twenty', 'dev', '--once'], {
+      const child = spawn('yarn', ['twenty', 'apply'], {
         cwd: appDirectory,
         stdio: ['inherit', 'pipe', 'pipe'],
       });
@@ -572,7 +572,7 @@ export class CreateAppCommand {
 
       console.log(
         chalk.yellow(
-          '  Authentication failed. Run `yarn twenty remote:add --local` manually.',
+          '  Authentication failed. Run `yarn twenty remote:add` manually.',
         ),
       );
 
@@ -580,7 +580,7 @@ export class CreateAppCommand {
     } catch {
       console.log(
         chalk.yellow(
-          '  Authentication failed. Run `yarn twenty remote:add --local` manually.',
+          '  Authentication failed. Run `yarn twenty remote:add` manually.',
         ),
       );
 
@@ -668,7 +668,7 @@ export class CreateAppCommand {
 
     console.log(
       chalk.gray(
-        '  Documentation: https://docs.twenty.com/developers/extend/capabilities/apps',
+        '  Documentation: https://docs.twenty.com/developers/extend/apps/getting-started/quick-start',
       ),
     );
   }

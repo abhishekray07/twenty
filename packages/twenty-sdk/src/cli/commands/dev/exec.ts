@@ -1,5 +1,6 @@
 import { functionExecute } from '@/cli/operations/execute';
 import { APP_ERROR_CODES, FUNCTION_ERROR_CODES } from '@/cli/types';
+import { ConfigService } from '@/cli/utilities/config/config-service';
 import { CURRENT_EXECUTION_DIRECTORY } from '@/cli/utilities/config/current-execution-directory';
 import chalk from 'chalk';
 import { isDefined } from 'twenty-shared/utils';
@@ -9,6 +10,7 @@ export class LogicFunctionExecuteCommand {
     appPath = CURRENT_EXECUTION_DIRECTORY,
     postInstall = false,
     preInstall = false,
+    uninstall = false,
     functionUniversalIdentifier,
     functionName,
     payload = '{}',
@@ -16,6 +18,7 @@ export class LogicFunctionExecuteCommand {
     appPath?: string;
     postInstall?: boolean;
     preInstall?: boolean;
+    uninstall?: boolean;
     functionUniversalIdentifier?: string;
     functionName?: string;
     payload?: string;
@@ -34,18 +37,26 @@ export class LogicFunctionExecuteCommand {
       ? 'post install'
       : preInstall
         ? 'pre install'
-        : (functionUniversalIdentifier ?? functionName);
+        : uninstall
+          ? 'uninstall'
+          : (functionUniversalIdentifier ?? functionName);
 
-    console.log(chalk.blue(`🚀 Executing function "${identifier}"...`));
+    const remoteName = ConfigService.getActiveRemote();
+
+    console.log(
+      chalk.blue(`🚀 Executing function "${identifier}" on ${remoteName}...`),
+    );
     console.log(chalk.gray(`   Payload: ${JSON.stringify(parsedPayload)}\n`));
 
     const executeOptions = postInstall
       ? { appPath, postInstall: true as const, payload: parsedPayload }
       : preInstall
         ? { appPath, preInstall: true as const, payload: parsedPayload }
-        : functionUniversalIdentifier
-          ? { appPath, functionUniversalIdentifier, payload: parsedPayload }
-          : { appPath, functionName: functionName!, payload: parsedPayload };
+        : uninstall
+          ? { appPath, uninstall: true as const, payload: parsedPayload }
+          : functionUniversalIdentifier
+            ? { appPath, functionUniversalIdentifier, payload: parsedPayload }
+            : { appPath, functionName: functionName!, payload: parsedPayload };
 
     const result = await functionExecute(executeOptions);
 

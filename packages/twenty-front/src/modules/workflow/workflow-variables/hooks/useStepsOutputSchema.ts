@@ -1,3 +1,5 @@
+import { getToastOptionsFromError } from '@/error-handler/utils/getToastOptionsFromError';
+import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
 import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { type WorkflowVersion } from '@/workflow/types/Workflow';
 import { getStepOutputSchemaFamilyStateKey } from '@/workflow/utils/getStepOutputSchemaFamilyStateKey';
@@ -14,13 +16,18 @@ import {
   computeStepOutputSchema,
   shouldComputeOutputSchemaOnFrontend,
 } from '@/workflow/workflow-variables/utils/generate/computeStepOutputSchema';
+import { resolvePersistedStepOutputSchema } from '@/workflow/workflow-variables/utils/resolvePersistedStepOutputSchema';
 import { useStore } from 'jotai';
 import { useCallback } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { TRIGGER_STEP_ID } from 'twenty-shared/workflow';
+import { isBaseOutputSchemaV2, TRIGGER_STEP_ID } from 'twenty-shared/workflow';
+import { useToast } from 'twenty-ui/components/feedback';
+import { ComputeStepOutputSchemaDocument } from '~/generated/graphql';
 
 export const useStepsOutputSchema = () => {
   const store = useStore();
+  const client = useApolloCoreClient();
+  const { enqueueToast } = useToast();
 
   const populateStepsOutputSchema = useCallback(
     (workflowVersion: WorkflowVersion) => {
@@ -44,29 +51,15 @@ export const useStepsOutputSchema = () => {
           return;
         }
 
-        // TODO: Remove this fallback after upgrade command
-        // `upgrade:1-21:migrate-ai-agent-text-to-json-response-format`
-        // has run on all workspaces.
-        const persistedOutputSchema =
-          step.type === 'AI_AGENT' &&
-          (!isDefined(step.settings?.outputSchema) ||
-            Object.keys(step.settings.outputSchema).length === 0)
-            ? {
-                response: {
-                  isLeaf: true,
-                  type: 'string',
-                  label: 'Response',
-                  value: null,
-                },
-              }
-            : step.settings?.outputSchema;
-
         const outputSchema = shouldComputeOnFrontend
           ? computeStepOutputSchema({
               step,
               objectMetadataItems,
             })
-          : persistedOutputSchema;
+          : resolvePersistedStepOutputSchema({
+              stepType: step.type,
+              settings: step.settings,
+            });
 
         const stepOutputSchema: StepOutputSchemaV2 = {
           id: step.id,
@@ -86,6 +79,30 @@ export const useStepsOutputSchema = () => {
           shouldRecomputeOutputSchemaFamilyState.atomFamily(stepKey),
           false,
         );
+
+        if (step.type === 'ITERATOR') {
+          void client
+            .mutate({
+              mutation: ComputeStepOutputSchemaDocument,
+              variables: {
+                input: { coreWorkflowVersionId: workflowVersion.id, step },
+              },
+            })
+            .then(({ data }) => {
+              const outputSchema = data?.computeStepOutputSchema;
+              const schemaState =
+                stepsOutputSchemaFamilyState.atomFamily(stepKey);
+              if (
+                store.get(schemaState) === stepOutputSchema &&
+                isBaseOutputSchemaV2(outputSchema)
+              ) {
+                store.set(schemaState, { ...stepOutputSchema, outputSchema });
+              }
+            })
+            .catch((error: Error) => {
+              enqueueToast(getToastOptionsFromError({ error }));
+            });
+        }
       });
 
       const trigger = workflowVersion.trigger;
@@ -115,7 +132,10 @@ export const useStepsOutputSchema = () => {
               step: trigger,
               objectMetadataItems,
             })
-          : trigger.settings?.outputSchema;
+          : resolvePersistedStepOutputSchema({
+              stepType: trigger.type,
+              settings: trigger.settings,
+            });
 
         const triggerOutputSchema: StepOutputSchemaV2 = {
           id: TRIGGER_STEP_ID,
@@ -137,7 +157,7 @@ export const useStepsOutputSchema = () => {
         );
       }
     },
-    [store],
+    [store, client, enqueueToast],
   );
 
   const markStepForRecomputation = useCallback(

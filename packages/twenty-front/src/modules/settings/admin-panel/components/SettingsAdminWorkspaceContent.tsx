@@ -1,7 +1,11 @@
+import { getChipLabel } from '@/ui/field/display/utils/getChipLabel';
+import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { type WorkspaceInfo } from '@/settings/admin-panel/types/WorkspaceInfo';
 import { getUpgradeHealthStatusBadge } from '@/settings/admin-panel/utils/getUpgradeHealthStatusBadge';
 import { getWorkspaceSchemaName } from '@/settings/admin-panel/utils/getWorkspaceSchemaName';
 import { SettingsTableCard } from '@/settings/components/SettingsTableCard';
+import { AvatarOrIcon } from '@/ui/field/display/components/internal/AvatarOrIcon/AvatarOrIcon';
+import { LinkChip } from '@/ui/navigation/link/components/LinkChip/LinkChip';
 import { DEFAULT_WORKSPACE_LOGO } from '@/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { UserContext } from '@/users/contexts/UserContext';
@@ -12,28 +16,26 @@ import { useContext } from 'react';
 import { SettingsPath } from 'twenty-shared/types';
 import {
   formatUpgradeCommandName,
-  getImageAbsoluteURI,
   getSettingsPath,
   isDefined,
 } from 'twenty-shared/utils';
-import { type GetUpgradeStatusQuery } from '~/generated-admin/graphql';
-import { AvatarOrIcon, LinkChip } from 'twenty-ui/components';
+import { Section } from 'twenty-ui/components/layout';
+import { OverflowingTextWithTooltip } from 'twenty-ui/primitives/typography';
 import {
-  H2Title,
   IconCalendar,
   IconHome,
   IconId,
   IconLink,
   IconStatusChange,
   IconUser,
-  OverflowingTextWithTooltip,
-  Status,
-} from 'twenty-ui/display';
-import { Section } from 'twenty-ui/layout';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { REACT_APP_SERVER_BASE_URL } from '~/config';
-import { dateLocaleState } from '~/localization/states/dateLocaleState';
-import { formatDateTimeString } from '~/utils/string/formatDateTimeString';
+} from 'twenty-ui/icon';
+import { Status } from 'twenty-ui/primitives/data-display';
+import { themeCssVariables } from 'twenty-ui/theme';
+import { type GetUpgradeStatusQuery } from '~/generated-admin/graphql';
+import { dateLocaleState } from '@/localization/states/dateLocaleState';
+import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
+import { formatDateTimeString } from '@/object-record/record-field/ui/utils/formatDateTimeString';
+import { getWorkspaceUrl } from '~/utils/getWorkspaceUrl';
 
 type SettingsAdminWorkspaceContentProps = {
   activeWorkspace: WorkspaceInfo | undefined;
@@ -52,6 +54,7 @@ export const SettingsAdminWorkspaceContent = ({
   workspaceUpgradeStatus,
 }: SettingsAdminWorkspaceContentProps) => {
   const { t } = useLingui();
+  const { formatNumber } = useNumberFormat();
   const { dateFormat, timeFormat, timeZone } = useContext(UserContext);
   const { localeCatalog } = useAtomStateValue(dateLocaleState);
 
@@ -63,10 +66,6 @@ export const SettingsAdminWorkspaceContent = ({
     localeCatalog: localeCatalog,
   });
 
-  const getWorkspaceUrl = (workspaceUrls: WorkspaceInfo['workspaceUrls']) => {
-    return workspaceUrls.customUrl ?? workspaceUrls.subdomainUrl;
-  };
-
   const upgradeHealthStatusBadge = getUpgradeHealthStatusBadge(
     workspaceUpgradeStatus?.health,
   );
@@ -77,24 +76,21 @@ export const SettingsAdminWorkspaceContent = ({
       label: t`Name`,
       value: activeWorkspace?.id ? (
         <LinkChip
-          label={activeWorkspace?.name ?? ''}
-          emptyLabel={t`Untitled`}
           to={getSettingsPath(SettingsPath.AdminPanelWorkspaceDetail, {
             workspaceId: activeWorkspace.id,
           })}
-          leftComponent={
+          startElement={
             <AvatarOrIcon
-              avatarUrl={
-                getImageAbsoluteURI({
-                  imageUrl: isNonEmptyString(activeWorkspace?.logo)
-                    ? activeWorkspace?.logo
-                    : DEFAULT_WORKSPACE_LOGO,
-                  baseUrl: REACT_APP_SERVER_BASE_URL,
-                }) ?? ''
-              }
+              src={getAbsoluteImageUrl(
+                isNonEmptyString(activeWorkspace?.logo)
+                  ? activeWorkspace?.logo
+                  : DEFAULT_WORKSPACE_LOGO,
+              )}
             />
           }
-        />
+        >
+          {getChipLabel(activeWorkspace.name).content}
+        </LinkChip>
       ) : (
         (activeWorkspace?.name ?? '')
       ),
@@ -121,7 +117,9 @@ export const SettingsAdminWorkspaceContent = ({
     {
       Icon: IconUser,
       label: t`Members`,
-      value: activeWorkspace?.totalUsers,
+      value: isDefined(activeWorkspace?.totalUsers)
+        ? formatNumber(activeWorkspace.totalUsers)
+        : activeWorkspace?.totalUsers,
     },
     {
       Icon: IconStatusChange,
@@ -141,8 +139,8 @@ export const SettingsAdminWorkspaceContent = ({
 
   return (
     <StyledContainer>
-      <Section>
-        <H2Title
+      <Section.Root>
+        <Section.Header
           title={t`Workspace Info`}
           description={t`About this workspace`}
         />
@@ -150,10 +148,10 @@ export const SettingsAdminWorkspaceContent = ({
           items={workspaceInfoItems}
           gridAutoColumns="1fr 4fr"
         />
-      </Section>
+      </Section.Root>
       {workspaceUpgradeStatus && (
-        <Section>
-          <H2Title
+        <Section.Root>
+          <Section.Header
             title={t`Upgrade Status`}
             description={t`Workspace upgrade health`}
           />
@@ -165,9 +163,10 @@ export const SettingsAdminWorkspaceContent = ({
                 value: (
                   <Status
                     color={upgradeHealthStatusBadge.color}
-                    text={upgradeHealthStatusBadge.label}
                     weight="medium"
-                  />
+                  >
+                    {upgradeHealthStatusBadge.label}
+                  </Status>
                 ),
               },
               {
@@ -225,7 +224,7 @@ export const SettingsAdminWorkspaceContent = ({
             ]}
             gridAutoColumns="2fr 3fr"
           />
-        </Section>
+        </Section.Root>
       )}
     </StyledContainer>
   );

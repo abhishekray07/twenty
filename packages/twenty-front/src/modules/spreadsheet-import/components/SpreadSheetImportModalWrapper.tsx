@@ -1,10 +1,16 @@
+import { t } from '@lingui/core/macro';
+import { Dialog } from 'twenty-ui/primitives/surfaces';
+import { DialogInstance } from '@/ui/layout/dialog/components/DialogInstance';
 import { styled } from '@linaria/react';
 
 import { useSpreadsheetImportInternal } from '@/spreadsheet-import/hooks/useSpreadsheetImportInternal';
 
-import { ModalStatefulWrapper } from '@/ui/layout/modal/components/ModalStatefulWrapper';
-import { MOBILE_VIEWPORT } from 'twenty-ui/theme-constants';
+import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme';
 import { SpreadSheetImportModalCloseButton } from './SpreadSheetImportModalCloseButton';
+
+const StyledPopup = styled(Dialog.Popup)`
+  height: ${themeCssVariables.modal.size.xl.height};
+`;
 
 const StyledInnerContainer = styled.div`
   display: flex;
@@ -41,20 +47,26 @@ export const SpreadSheetImportModalWrapper = ({
   const { rtl } = useSpreadsheetImportInternal();
 
   return (
-    <ModalStatefulWrapper
-      size="extraLarge"
-      padding="none"
-      modalInstanceId={modalInstanceId}
-      isClosable={true}
+    <DialogInstance
+      dialogId={modalInstanceId}
+      dismissible={true}
       onClose={onClose}
-      shouldCloseModalOnClickOutsideOrEscape={false}
+      closeOnDismiss={false}
     >
-      <StyledInnerContainer>
-        <StyledRtlLtr dir={rtl ? 'rtl' : 'ltr'}>
-          <SpreadSheetImportModalCloseButton onClose={onClose} />
-          {children}
-        </StyledRtlLtr>
-      </StyledInnerContainer>
-    </ModalStatefulWrapper>
+      {({ onKeyDown }) => (
+        <StyledPopup
+          aria-label={t`Import data`}
+          onKeyDown={onKeyDown}
+          size="xl"
+        >
+          <StyledInnerContainer>
+            <StyledRtlLtr dir={rtl ? 'rtl' : 'ltr'}>
+              <SpreadSheetImportModalCloseButton onClose={onClose} />
+              {children}
+            </StyledRtlLtr>
+          </StyledInnerContainer>
+        </StyledPopup>
+      )}
+    </DialogInstance>
   );
 };

@@ -1,3 +1,4 @@
+import { SpreadsheetImportStepBody } from '@/spreadsheet-import/components/SpreadsheetImportStepBody';
 import { styled } from '@linaria/react';
 import { useCallback, useState } from 'react';
 
@@ -9,10 +10,9 @@ import { SpreadsheetImportStepType } from '@/spreadsheet-import/steps/types/Spre
 import { exceedsMaxRecords } from '@/spreadsheet-import/utils/exceedsMaxRecords';
 import { mapWorkbook } from '@/spreadsheet-import/utils/mapWorkbook';
 
-import { ModalContent } from 'twenty-ui/layout';
 import { useLingui } from '@lingui/react/macro';
-import { Radio } from 'twenty-ui/input';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Radio, RadioGroup } from 'twenty-ui/primitives/input';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { type WorkBook } from 'xlsx-ugnis';
 
 const StyledRadioContainer = styled.div`
@@ -99,23 +99,26 @@ export const SelectSheetStep = ({
 
   return (
     <>
-      <ModalContent isVerticallyCentered isHorizontallyCentered gap={8}>
+      <SpreadsheetImportStepBody
+        padding="large"
+        isCenteredHorizontally
+        isCenteredVertically
+        hasLargeGap
+      >
         <Heading title={t`Select the sheet to use`} />
-        <StyledRadioContainer>
+        <RadioGroup
+          render={<StyledRadioContainer />}
+          aria-label={t`Select the sheet to use`}
+          value={value}
+          onValueChange={setValue}
+        >
           {sheetNames.map((sheetName) => (
             <StyledRadioItemContainer key={sheetName}>
-              <Radio
-                value={sheetName}
-                label={sheetName}
-                checked={value === sheetName}
-                onCheckedChange={(checked) => {
-                  if (checked) setValue(sheetName);
-                }}
-              />
+              <Radio value={sheetName}>{sheetName}</Radio>
             </StyledRadioItemContainer>
           ))}
-        </StyledRadioContainer>
-      </ModalContent>
+        </RadioGroup>
+      </SpreadsheetImportStepBody>
       <StepNavigationButton
         onContinue={() => handleOnContinue(value)}
         onBack={onBack}

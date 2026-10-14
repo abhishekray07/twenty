@@ -5,8 +5,8 @@ import { type WorkflowDiagramStepNodeData } from '@/workflow/workflow-diagram/ty
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { isDefined } from 'twenty-shared/utils';
-import { IconPlus } from 'twenty-ui/display';
-import { IconButton } from 'twenty-ui/input';
+import { IconPlus } from 'twenty-ui/icon';
+import { IconButton } from 'twenty-ui/components/input';
 
 const StyledContainer = styled.div`
   align-items: center;
@@ -56,12 +56,9 @@ export const WorkflowDiagramCreateStepElement = ({
 
       {isDefined(Label) && <StyledLabelContainer>{Label}</StyledLabelContainer>}
 
-      <IconButton
-        Icon={IconPlus}
-        size="small"
-        ariaLabel={t`Add a step`}
-        onClick={addNode}
-      />
+      <IconButton size="sm" aria-label={t`Add a step`} onClick={addNode}>
+        <IconPlus />
+      </IconButton>
     </StyledContainer>
   );
 };

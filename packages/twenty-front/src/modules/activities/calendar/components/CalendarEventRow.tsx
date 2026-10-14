@@ -14,9 +14,8 @@ import { getCalendarEventStartDate } from '@/activities/calendar/utils/getCalend
 import { hasCalendarEventEnded } from '@/activities/calendar/utils/hasCalendarEventEnded';
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { useOpenCalendarEventInSidePanel } from '@/side-panel/hooks/useOpenCalendarEventInSidePanel';
-import { useContext } from 'react';
-import { IconArrowRight } from 'twenty-ui/display';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { IconArrowRight } from 'twenty-ui/icon';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 type CalendarEventRowProps = {
   calendarEvent: TimelineCalendarEvent;
@@ -75,7 +74,7 @@ export const CalendarEventRow = ({
   calendarEvent,
   className,
 }: CalendarEventRowProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
   const { openCalendarEventInSidePanel } = useOpenCalendarEventInSidePanel();
 
@@ -125,9 +124,11 @@ export const CalendarEventRow = ({
           <CalendarEventNotSharedContent />
         )}
       </StyledLabels>
-      {!!calendarEvent.participants?.length && (
+      {(!!calendarEvent.participants?.length ||
+        !!calendarEvent.callRecordings?.length) && (
         <CalendarEventParticipantsAvatarGroup
-          participants={calendarEvent.participants}
+          participants={calendarEvent.participants ?? []}
+          callRecordings={calendarEvent.callRecordings}
         />
       )}
     </StyledContainer>

@@ -1,5 +1,6 @@
 import { type Meta } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
+import { type FrontComponentExecutionContext } from 'twenty-sdk/front-component';
 
 import { type FrontComponentRenderer } from '@/host/components/FrontComponentRenderer';
 
@@ -14,19 +15,32 @@ export const hostApiMocks = {
   updateProgress: fn().mockResolvedValue(undefined),
   requestAccessTokenRefresh: fn().mockResolvedValue('refreshed-token'),
   openCommandConfirmationModal: fn().mockResolvedValue(undefined),
+  copyToClipboard: fn().mockResolvedValue(undefined),
+  uploadFile: fn().mockResolvedValue({
+    status: 'failed',
+    reason: 'upload-failed',
+  }),
+  storageSet: fn().mockResolvedValue(undefined),
+  storageDelete: fn().mockResolvedValue(undefined),
+  storageClear: fn().mockResolvedValue(undefined),
 };
+
+export const FRONT_COMPONENT_STORY_DEFAULT_EXECUTION_CONTEXT: FrontComponentExecutionContext =
+  {
+    frontComponentId: 'unset',
+    userId: null,
+    recordId: null,
+    selectedRecordIds: [],
+    timelineActivityId: null,
+    colorScheme: 'light',
+  };
 
 export const FRONT_COMPONENT_STORY_DEFAULT_ARGS: NonNullable<
   Meta<typeof FrontComponentRenderer>['args']
 > = {
   onError: errorHandler,
   applicationAccessToken: 'fake-token',
-  executionContext: {
-    frontComponentId: 'unset',
-    userId: null,
-    recordId: null,
-    selectedRecordIds: [],
-  },
+  executionContext: FRONT_COMPONENT_STORY_DEFAULT_EXECUTION_CONTEXT,
   colorScheme: 'light',
   frontComponentHostCommunicationApi: hostApiMocks,
 };
@@ -41,4 +55,9 @@ export const resetFrontComponentStoryMocks = () => {
   hostApiMocks.updateProgress.mockClear();
   hostApiMocks.requestAccessTokenRefresh.mockClear();
   hostApiMocks.openCommandConfirmationModal.mockClear();
+  hostApiMocks.copyToClipboard.mockClear();
+  hostApiMocks.uploadFile.mockClear();
+  hostApiMocks.storageSet.mockClear();
+  hostApiMocks.storageDelete.mockClear();
+  hostApiMocks.storageClear.mockClear();
 };

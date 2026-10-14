@@ -1,11 +1,13 @@
+import { type AgentMessageWorkspaceEntity } from 'src/engine/metadata-modules/ai/ai-history/standard-objects/agent-message.workspace-entity';
 import { registerEnumType } from '@nestjs/graphql';
 
 import { type APP_LOCALES } from 'twenty-shared/translations';
-import { FieldMetadataType, type FullNameMetadata } from 'twenty-shared/types';
+import { type FullNameMetadata } from 'twenty-shared/types';
 import { type Relation } from 'typeorm';
 
+import { type AgentChatThreadParticipantWorkspaceEntity } from 'src/engine/metadata-modules/ai/ai-history/standard-objects/agent-chat-thread-participant.workspace-entity';
+import { type AgentChatThreadWorkspaceEntity } from 'src/engine/metadata-modules/ai/ai-history/standard-objects/agent-chat-thread.workspace-entity';
 import { BaseWorkspaceEntity } from 'src/engine/twenty-orm/base.workspace-entity';
-import { type FieldTypeAndNameMetadata } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 import { type AttachmentWorkspaceEntity } from 'src/modules/attachment/standard-objects/attachment.workspace-entity';
 import { type BlocklistWorkspaceEntity } from 'src/modules/blocklist/standard-objects/blocklist.workspace-entity';
 import { type CalendarEventParticipantWorkspaceEntity } from 'src/modules/calendar/common/standard-objects/calendar-event-participant.workspace-entity';
@@ -52,21 +54,16 @@ registerEnumType(WorkspaceMemberDateFormatEnum, {
     'Date format as Month first, Day first, Year first or system as default',
 });
 
-const NAME_FIELD_NAME = 'name';
-const USER_EMAIL_FIELD_NAME = 'userEmail';
-
-export const SEARCH_FIELDS_FOR_WORKSPACE_MEMBER: FieldTypeAndNameMetadata[] = [
-  { name: NAME_FIELD_NAME, type: FieldMetadataType.FULL_NAME },
-  { name: USER_EMAIL_FIELD_NAME, type: FieldMetadataType.TEXT },
-];
-
 export class WorkspaceMemberWorkspaceEntity extends BaseWorkspaceEntity {
   position: number;
   name: FullNameMetadata;
   colorScheme: string;
+  uiScale: string;
+  openRecordIn: string;
   locale: keyof typeof APP_LOCALES;
   avatarUrl: string | null;
   userEmail: string | null;
+  jobTitle: string | null;
   calendarStartDay: number;
   userId: string;
   timeZone: string;
@@ -81,6 +78,13 @@ export class WorkspaceMemberWorkspaceEntity extends BaseWorkspaceEntity {
     CalendarEventParticipantWorkspaceEntity[]
   >;
   timelineActivities: Relation<TimelineActivityWorkspaceEntity[]>;
+  agentMessages: Relation<AgentMessageWorkspaceEntity[]>;
+
+  agentChatThreads: Relation<AgentChatThreadWorkspaceEntity[]>;
+  assignedAgentChatThreads: Relation<AgentChatThreadWorkspaceEntity[]>;
+  agentChatThreadParticipants: Relation<
+    AgentChatThreadParticipantWorkspaceEntity[]
+  >;
   ownedOpportunities: Relation<OpportunityWorkspaceEntity[]>;
   searchVector: string;
   numberFormat: string;

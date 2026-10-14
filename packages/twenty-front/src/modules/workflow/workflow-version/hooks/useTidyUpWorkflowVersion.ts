@@ -1,92 +1,65 @@
-import { type WorkflowVersion } from '@/workflow/types/Workflow';
+import { invalidateCoreWorkflowVersions } from '@/object-core/workflows/versions/utils/invalidateCoreWorkflowVersions';
+import { UpdateCoreWorkflowVersionPositionsDocument } from '~/generated/graphql';
 import { type WorkflowDiagram } from '@/workflow/workflow-diagram/types/WorkflowDiagram';
 import { useMutation } from '@apollo/client/react';
 import { isDefined } from 'twenty-shared/utils';
-import {
-  type UpdateWorkflowVersionPositionsMutation,
-  type UpdateWorkflowVersionPositionsMutationVariables,
-} from '~/generated/graphql';
 
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
-import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
-import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
-import { useGetRecordFromCache } from '@/object-record/cache/hooks/useGetRecordFromCache';
-import { updateRecordFromCache } from '@/object-record/cache/utils/updateRecordFromCache';
-import { useObjectPermissions } from '@/object-record/hooks/useObjectPermissions';
+import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
+import { flowComponentState } from '@/workflow/states/flowComponentState';
 import { getOrganizedDiagram } from '@/workflow/workflow-diagram/utils/getOrganizedDiagram';
-import { UPDATE_WORKFLOW_VERSION_POSITIONS } from '@/workflow/workflow-version/graphql/mutations/updateWorkflowVersionPositions';
 
-export const useTidyUpWorkflowVersion = () => {
+export const useTidyUpWorkflowVersion = (instanceId?: string) => {
   const apolloCoreClient = useApolloCoreClient();
-
-  const { objectMetadataItems } = useObjectMetadataItems();
-  const { objectPermissionsByObjectMetadataId } = useObjectPermissions();
-
-  const { objectMetadataItem } = useObjectMetadataItem({
-    objectNameSingular: CoreObjectNameSingular.WorkflowVersion,
-  });
-  const getRecordFromCache = useGetRecordFromCache({
-    objectNameSingular: CoreObjectNameSingular.WorkflowVersion,
+  const [mutateCore] = useMutation(UpdateCoreWorkflowVersionPositionsDocument, {
+    client: apolloCoreClient,
   });
 
-  const [mutate] = useMutation<
-    UpdateWorkflowVersionPositionsMutation,
-    UpdateWorkflowVersionPositionsMutationVariables
-  >(UPDATE_WORKFLOW_VERSION_POSITIONS, { client: apolloCoreClient });
+  const setFlow = useSetAtomComponentState(flowComponentState, instanceId);
 
   const updateWorkflowVersionPosition = async (
     workflowVersionId: string,
     positions: { id: string; position: { x: number; y: number } }[],
   ) => {
-    await mutate({ variables: { input: { workflowVersionId, positions } } });
+    await mutateCore({
+      variables: {
+        input: { coreWorkflowVersionId: workflowVersionId, positions },
+      },
+    });
 
-    const cachedRecord = getRecordFromCache<WorkflowVersion>(workflowVersionId);
-
-    if (!isDefined(cachedRecord)) {
-      return;
-    }
-
-    const triggerPosition = positions.find(
-      (position) => position.id === 'trigger',
-    );
-
-    const updatedTrigger =
-      isDefined(triggerPosition) && isDefined(cachedRecord.trigger)
-        ? { ...cachedRecord.trigger, position: triggerPosition.position }
-        : cachedRecord.trigger;
-
-    const updatedSteps = cachedRecord.steps?.map((step) => {
-      const stepPosition = positions.find(
-        (position) => position.id === step.id,
-      );
-
-      if (!isDefined(stepPosition)) {
-        return step;
+    setFlow((currentFlow) => {
+      if (!isDefined(currentFlow)) {
+        return currentFlow;
       }
 
-      return { ...step, position: stepPosition.position };
+      const triggerPositionInFlow = positions.find(
+        (position) => position.id === 'trigger',
+      );
+
+      return {
+        ...currentFlow,
+        workflowVersionId,
+        trigger:
+          isDefined(triggerPositionInFlow) && isDefined(currentFlow.trigger)
+            ? {
+                ...currentFlow.trigger,
+                position: triggerPositionInFlow.position,
+              }
+            : currentFlow.trigger,
+        steps:
+          currentFlow.steps?.map((step) => {
+            const stepPosition = positions.find(
+              (position) => position.id === step.id,
+            );
+
+            return isDefined(stepPosition)
+              ? { ...step, position: stepPosition.position }
+              : step;
+          }) ?? null,
+      };
     });
 
-    const newCachedRecord = {
-      ...cachedRecord,
-      trigger: updatedTrigger,
-      steps: updatedSteps,
-    };
-
-    const recordGqlFields = {
-      trigger: true,
-      steps: true,
-    };
-
-    updateRecordFromCache({
-      objectMetadataItems,
-      objectMetadataItem,
-      cache: apolloCoreClient.cache,
-      record: newCachedRecord,
-      recordGqlFields,
-      objectPermissionsByObjectMetadataId,
-    });
+    await invalidateCoreWorkflowVersions(apolloCoreClient);
   };
 
   const tidyUpWorkflowVersion = async (

@@ -1,15 +1,18 @@
+import { useLingui } from '@lingui/react/macro';
 import React, { useMemo } from 'react';
 
 import { getFieldLinkDefinedLinks } from '@/object-record/record-field/ui/meta-types/input/utils/getFieldLinkDefinedLinks';
 import { type FieldLinksValue } from '@/object-record/record-field/ui/types/FieldMetadata';
-import { ExpandableList } from '@/ui/layout/expandable-list/components/ExpandableList';
+import { SocialLink } from '@/ui/field/display/components/SocialLink/SocialLink';
+import { OverflowingList } from 'twenty-ui/components/layout';
 import {
   getAbsoluteUrlOrThrow,
   getUrlHostnameOrThrow,
   isDefined,
 } from 'twenty-shared/utils';
-import { LinkType, RoundedLink, SocialLink } from 'twenty-ui/navigation';
-import { checkUrlType } from '~/utils/checkUrlType';
+import { RoundedLink } from '@/ui/navigation/link/components/RoundedLink/RoundedLink';
+import { checkUrlType } from '@/ui/field/display/utils/checkUrlType';
+import { isSocialLinkType } from '@/ui/field/display/utils/isSocialLinkType';
 
 type LinksDisplayProps = {
   value?: FieldLinksValue;
@@ -17,6 +20,8 @@ type LinksDisplayProps = {
 };
 
 export const LinksDisplay = ({ value, onLinkClick }: LinksDisplayProps) => {
+  const { t } = useLingui();
+
   const links = useMemo(() => {
     if (!isDefined(value)) {
       return [];
@@ -34,18 +39,17 @@ export const LinksDisplay = ({ value, onLinkClick }: LinksDisplayProps) => {
       }
       return {
         url: absoluteUrl,
-        label: label || hostname,
+        label,
+        displayLabel: label || hostname,
         type: checkUrlType(absoluteUrl),
       };
     });
   }, [value]);
 
   return (
-    <ExpandableList>
-      {links.map(({ url, label, type }, index) =>
-        type === LinkType.LinkedIn ||
-        type === LinkType.Twitter ||
-        type === LinkType.Facebook ? (
+    <OverflowingList overflowLabel={t`Show all items`}>
+      {links.map(({ url, label, displayLabel, type }, index) =>
+        isSocialLinkType(type) ? (
           <SocialLink
             key={index}
             href={url}
@@ -57,11 +61,11 @@ export const LinksDisplay = ({ value, onLinkClick }: LinksDisplayProps) => {
           <RoundedLink
             key={index}
             href={url}
-            label={label}
+            label={displayLabel}
             onClick={(event) => onLinkClick?.(url, event)}
           />
         ),
       )}
-    </ExpandableList>
+    </OverflowingList>
   );
 };

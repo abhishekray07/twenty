@@ -45,6 +45,18 @@ export class ConnectedAccountDTO {
   @Field(() => Date, { nullable: true })
   authFailedAt: Date | null;
 
+  @IsString()
+  @IsOptional()
+  @Field(() => String, { nullable: true })
+  authFailedReason: string | null;
+
+  // Set when the account is disconnected or frozen: synced data is kept but
+  // cannot be updated until the account is reconnected.
+  @IsDateString()
+  @IsOptional()
+  @Field(() => Date, { nullable: true })
+  archivedAt: Date | null;
+
   @IsArray()
   @IsOptional()
   @Field(() => [String], { nullable: true })

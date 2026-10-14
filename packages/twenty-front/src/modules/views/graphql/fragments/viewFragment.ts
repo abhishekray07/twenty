@@ -23,16 +23,20 @@ export const VIEW_FRAGMENT = gql`
     icon
     position
     isCompact
-    openRecordIn
     kanbanAggregateOperation
     kanbanAggregateOperationFieldMetadataId
     mainGroupByFieldMetadataId
     shouldHideEmptyGroups
+    kanbanColumnWidth
+    groupLoadLimit
     anyFieldFilterValue
     calendarFieldMetadataId
+    calendarEndFieldMetadataId
     calendarLayout
     visibility
     createdByUserWorkspaceId
+    applicationId
+    isActive
     viewFields {
       ...ViewFieldFragment
     }

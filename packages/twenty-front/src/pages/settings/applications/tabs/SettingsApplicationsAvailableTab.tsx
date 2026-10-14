@@ -1,20 +1,37 @@
+import { useMarketplaceApps } from '@/marketplace/hooks/useMarketplaceApps';
 import { SettingsEmptyPlaceholder } from '@/settings/components/SettingsEmptyPlaceholder';
-import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
+import { SettingsSectionSkeletonLoader } from '@/settings/components/SettingsSectionSkeletonLoader';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
-import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
+import { DropdownRoot } from '@/ui/layout/dropdown/components/DropdownRoot';
 import { styled } from '@linaria/react';
+import { plural } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react/macro';
-import { type ReactNode, useState } from 'react';
-import { IconSparkles } from 'twenty-ui/display';
-import { SearchInput } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
-import { MenuItemToggle } from 'twenty-ui/navigation';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { useMarketplaceApps } from '~/modules/marketplace/hooks/useMarketplaceApps';
+import { useState } from 'react';
+import { isDefined } from 'twenty-shared/utils';
+import { InlineBanner } from 'twenty-ui/components/feedback';
+import { SearchInput } from 'twenty-ui/components/input';
+import { Section } from 'twenty-ui/components/layout';
+import { Dropdown } from 'twenty-ui/components/navigation';
+import { SettingsRow } from 'twenty-ui/components/settings';
+import { IconSparkles } from 'twenty-ui/icon';
+import { themeCssVariables } from 'twenty-ui/theme';
+import { SettingsApplicationLoadErrorBanner } from '~/pages/settings/applications/components/SettingsApplicationLoadErrorBanner';
 import { SettingsAvailableApplicationCard } from '~/pages/settings/applications/components/SettingsAvailableApplicationCard';
+import { filterMarketplaceApps } from '~/pages/settings/applications/utils/filterMarketplaceApps';
+import { SettingsSearchFilterTrigger } from '@/settings/components/SettingsSearchFilterTrigger';
 
 const StyledSearchInputContainer = styled.div`
   padding-bottom: ${themeCssVariables.spacing[2]};
+`;
+
+const StyledContentContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${themeCssVariables.spacing[3]};
+`;
+
+const StyledNotVettedContainer = styled.div`
+  margin-top: ${themeCssVariables.spacing[3]};
 `;
 
 const StyledCardsGrid = styled.div`
@@ -25,6 +42,13 @@ const StyledCardsGrid = styled.div`
   @media (max-width: 800px) {
     grid-template-columns: minmax(0, 1fr);
   }
+`;
+
+const StyledEmptyState = styled.div`
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: ${themeCssVariables.spacing[2]};
 `;
 
 const StyledHintLink = styled.button`
@@ -40,96 +64,146 @@ const StyledHintLink = styled.button`
 export const SettingsApplicationsAvailableTab = () => {
   const { t } = useLingui();
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFeaturedOnly, setShowFeaturedOnly] = useState(true);
+  const [showVettedOnly, setShowVettedOnly] = useState(true);
 
-  const { data: marketplaceApps, isLoading } = useMarketplaceApps();
+  const {
+    data: marketplaceApps,
+    isLoading,
+    error,
+    refetch,
+  } = useMarketplaceApps();
 
-  const textFilteredApplications = searchTerm
-    ? marketplaceApps.filter((application) => {
-        const lowerSearch = searchTerm.toLowerCase();
+  const hasSearchTerm = searchTerm.trim().length > 0;
 
-        return (
-          application.name.toLowerCase().includes(lowerSearch) ||
-          application.description.toLowerCase().includes(lowerSearch) ||
-          application.author.toLowerCase().includes(lowerSearch)
-        );
-      })
-    : marketplaceApps;
+  const textFilteredApplications = filterMarketplaceApps({
+    marketplaceApps,
+    searchTerm,
+  });
 
-  const filteredApplications = showFeaturedOnly
-    ? textFilteredApplications.filter((application) => application.isFeatured)
-    : textFilteredApplications;
+  const vettedApplications = textFilteredApplications.filter(
+    (application) => application.isVetted,
+  );
 
-  const nonFeaturedCount = showFeaturedOnly
-    ? textFilteredApplications.filter((application) => !application.isFeatured)
-        .length
-    : 0;
+  const nonVettedApplications = textFilteredApplications.filter(
+    (application) => !application.isVetted,
+  );
 
   if (isLoading) {
     return (
-      <Section>
-        <SettingsEmptyPlaceholder padding="4">{t`Loading applications...`}</SettingsEmptyPlaceholder>
-      </Section>
+      <Section.Root>
+        <SettingsSectionSkeletonLoader />
+      </Section.Root>
     );
   }
 
-  const showNonFeaturedHint =
-    filteredApplications.length === 0 && nonFeaturedCount > 0;
+  if (isDefined(error)) {
+    return (
+      <Section.Root>
+        <SettingsApplicationLoadErrorBanner
+          message={t`The marketplace could not be loaded. Check your connection and try again.`}
+          onRetry={() => refetch().catch(() => undefined)}
+        />
+      </Section.Root>
+    );
+  }
+
+  const showNonVettedHint =
+    showVettedOnly &&
+    vettedApplications.length === 0 &&
+    nonVettedApplications.length > 0;
+
+  const hasNoApplications = textFilteredApplications.length === 0;
+
+  const nonVettedCount = nonVettedApplications.length;
+
+  const getEmptyStateMessage = () => {
+    if (showNonVettedHint) {
+      return plural(nonVettedCount, {
+        one: 'No vetted application matches. # non-vetted application is available.',
+        other:
+          'No vetted application matches. # non-vetted applications are available.',
+      });
+    }
+
+    if (hasSearchTerm) {
+      return t`No application matches your search`;
+    }
+
+    return t`No applications available yet`;
+  };
 
   return (
-    <Section>
+    <Section.Root>
       <StyledSearchInputContainer>
         <SearchInput
           placeholder={t`Search an application`}
           value={searchTerm}
-          onChange={setSearchTerm}
-          filterDropdown={(filterButton: ReactNode) => (
-            <Dropdown
-              dropdownId="marketplace-filter-dropdown"
-              dropdownPlacement="bottom-end"
-              dropdownOffset={{ x: 0, y: 8 }}
-              clickableComponent={filterButton}
-              dropdownComponents={
-                <DropdownContent>
-                  <DropdownMenuItemsContainer>
-                    <MenuItemToggle
-                      LeftIcon={IconSparkles}
-                      onToggleChange={() =>
-                        setShowFeaturedOnly(!showFeaturedOnly)
-                      }
-                      toggled={showFeaturedOnly}
-                      text={t`Featured only`}
-                      toggleSize="small"
-                    />
-                  </DropdownMenuItemsContainer>
-                </DropdownContent>
-              }
-            />
-          )}
+          onValueChange={setSearchTerm}
+          actions={
+            <DropdownRoot dropdownId="marketplace-filter-dropdown" type="panel">
+              <SettingsSearchFilterTrigger ariaLabel={t`Filter applications`} />
+              <DropdownContent
+                side="bottom"
+                align="end"
+                sideOffset={8}
+                alignOffset={0}
+              >
+                <Dropdown.Section>
+                  <SettingsRow
+                    startElement={<IconSparkles />}
+                    onCheckedChange={() => setShowVettedOnly(!showVettedOnly)}
+                    checked={showVettedOnly}
+                  >{t`Vetted only`}</SettingsRow>
+                </Dropdown.Section>
+              </DropdownContent>
+            </DropdownRoot>
+          }
         />
       </StyledSearchInputContainer>
 
-      {filteredApplications.length === 0 ? (
+      {hasNoApplications ||
+      (showVettedOnly && vettedApplications.length === 0) ? (
         <SettingsEmptyPlaceholder padding="4">
-          {showNonFeaturedHint
-            ? t`No featured applications found. ${nonFeaturedCount} non-featured result(s) available — `
-            : t`No applications available`}
-          {showNonFeaturedHint && (
-            <StyledHintLink onClick={() => setShowFeaturedOnly(false)}>
-              {t`show all`}
-            </StyledHintLink>
-          )}
+          <StyledEmptyState role="status">
+            {getEmptyStateMessage()}
+            {showNonVettedHint && (
+              <StyledHintLink
+                type="button"
+                onClick={() => setShowVettedOnly(false)}
+              >
+                {t`Show all applications`}
+              </StyledHintLink>
+            )}
+          </StyledEmptyState>
         </SettingsEmptyPlaceholder>
       ) : (
-        <StyledCardsGrid>
-          {filteredApplications.map((application) => (
-            <SettingsAvailableApplicationCard
-              key={application.id}
-              application={application}
-            />
-          ))}
-        </StyledCardsGrid>
+        <StyledContentContainer>
+          {vettedApplications.length > 0 && (
+            <StyledCardsGrid>
+              {vettedApplications.map((application) => (
+                <SettingsAvailableApplicationCard
+                  key={application.id}
+                  application={application}
+                />
+              ))}
+            </StyledCardsGrid>
+          )}
+
+          {!showVettedOnly && nonVettedApplications.length > 0 && (
+            <StyledNotVettedContainer>
+              <InlineBanner status="warning">{t`Applications below are not vetted. Use at your own risk.`}</InlineBanner>
+              <StyledCardsGrid>
+                {nonVettedApplications.map((application) => (
+                  <SettingsAvailableApplicationCard
+                    key={application.id}
+                    application={application}
+                  />
+                ))}
+              </StyledCardsGrid>
+            </StyledNotVettedContainer>
+          )}
+        </StyledContentContainer>
       )}
-    </Section>
+    </Section.Root>
   );
 };

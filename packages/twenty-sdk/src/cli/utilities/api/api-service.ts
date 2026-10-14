@@ -3,8 +3,12 @@ import { type ApiResponse } from '@/cli/utilities/api/api-response-type';
 import { ApplicationApi } from '@/cli/utilities/api/application-api';
 import { FileApi } from '@/cli/utilities/api/file-api';
 import { LogicFunctionApi } from '@/cli/utilities/api/logic-function-api';
-import { SchemaApi } from '@/cli/utilities/api/schema-api';
+import { type ApplicationExport } from '@/cli/utilities/pull/application-export-type';
 import { type Manifest } from 'twenty-shared/application';
+import {
+  type MetadataValidationErrorResponse,
+  type SyncAction,
+} from 'twenty-shared/metadata';
 
 type ApiServiceOptions = {
   disableInterceptors?: boolean;
@@ -16,14 +20,12 @@ type ApiServiceOptions = {
 export class ApiService {
   private apiClient: ApiClient;
   private applicationApi: ApplicationApi;
-  private schemaApi: SchemaApi;
   private logicFunctionApi: LogicFunctionApi;
   private fileApi: FileApi;
 
   constructor(options?: ApiServiceOptions) {
     this.apiClient = new ApiClient(options);
     this.applicationApi = new ApplicationApi(this.apiClient.client);
-    this.schemaApi = new SchemaApi(this.apiClient.client);
     this.logicFunctionApi = new LogicFunctionApi(this.apiClient);
     this.fileApi = new FileApi(this.apiClient.client);
   }
@@ -56,24 +58,31 @@ export class ApiService {
     return this.applicationApi.createApplicationRegistration(...args);
   }
 
-  rotateApplicationRegistrationClientSecret(
-    ...args: Parameters<
-      ApplicationApi['rotateApplicationRegistrationClientSecret']
-    >
-  ) {
-    return this.applicationApi.rotateApplicationRegistrationClientSecret(
-      ...args,
-    );
-  }
-
   createDevelopmentApplication(
     ...args: Parameters<ApplicationApi['createDevelopmentApplication']>
   ) {
     return this.applicationApi.createDevelopmentApplication(...args);
   }
 
-  syncApplication(manifest: Manifest): Promise<ApiResponse> {
-    return this.applicationApi.syncApplication(manifest);
+  syncApplication(
+    manifest: Manifest,
+    options?: { dryRun?: boolean; inferDeletionFromMissingEntities?: boolean },
+  ): Promise<
+    ApiResponse<
+      {
+        applicationUniversalIdentifier: string;
+        actions: SyncAction[];
+      },
+      MetadataValidationErrorResponse
+    >
+  > {
+    return this.applicationApi.syncApplication(manifest, options);
+  }
+
+  exportApplication(
+    universalIdentifier: string,
+  ): Promise<ApiResponse<ApplicationExport>> {
+    return this.applicationApi.exportApplication(universalIdentifier);
   }
 
   uninstallApplication(universalIdentifier: string): Promise<ApiResponse> {
@@ -84,16 +93,10 @@ export class ApiService {
     return this.applicationApi.syncMarketplaceCatalog();
   }
 
-  getSchema(options?: {
-    appAccessToken?: string;
-  }): Promise<ApiResponse<string>> {
-    return this.schemaApi.getSchema(options);
-  }
-
-  getMetadataSchema(options?: {
-    appAccessToken?: string;
-  }): Promise<ApiResponse<string>> {
-    return this.schemaApi.getMetadataSchema(options);
+  getApplicationCoreGraphqlSchema(
+    ...args: Parameters<ApplicationApi['getApplicationCoreGraphqlSchema']>
+  ) {
+    return this.applicationApi.getApplicationCoreGraphqlSchema(...args);
   }
 
   findLogicFunctions(
@@ -112,15 +115,29 @@ export class ApiService {
     return this.logicFunctionApi.subscribeToLogs(...args);
   }
 
-  uploadAppTarball(...args: Parameters<FileApi['uploadAppTarball']>) {
-    return this.fileApi.uploadAppTarball(...args);
+  createFileUpload(...args: Parameters<FileApi['createFileUpload']>) {
+    return this.fileApi.createFileUpload(...args);
+  }
+
+  completeAppTarballUpload(
+    ...args: Parameters<FileApi['completeAppTarballUpload']>
+  ) {
+    return this.fileApi.completeAppTarballUpload(...args);
   }
 
   installTarballApp(...args: Parameters<FileApi['installTarballApp']>) {
     return this.fileApi.installTarballApp(...args);
   }
 
-  uploadFile(...args: Parameters<FileApi['uploadFile']>) {
-    return this.fileApi.uploadFile(...args);
+  createApplicationFileUploads(
+    ...args: Parameters<FileApi['createApplicationFileUploads']>
+  ) {
+    return this.fileApi.createApplicationFileUploads(...args);
+  }
+
+  completeApplicationFileUploads(
+    ...args: Parameters<FileApi['completeApplicationFileUploads']>
+  ) {
+    return this.fileApi.completeApplicationFileUploads(...args);
   }
 }

@@ -1,19 +1,26 @@
 import { formatPath } from '@/cli/utilities/file/file-path';
+import chalk from 'chalk';
 import type { Command } from 'commander';
 import { SyncableEntity } from 'twenty-shared/application';
 import { EntityAddCommand } from './add';
 import { AppBuildCommand } from './build';
 import { AppDevCommand } from './dev';
 import { AppDevOnceCommand } from './dev-once';
-import { AppTypecheckCommand } from './typecheck';
 import { registerDevFunctionCommands } from './function';
+import { AppGenerateClientCommand } from './generate-client';
+import { AppPullCommand } from './pull';
+import { AppTranslationsExtractCommand } from './translations-extract';
+import { AppTypecheckCommand } from './typecheck';
 
 export const registerDevCommands = (program: Command): void => {
   const buildCommand = new AppBuildCommand();
   const devCommand = new AppDevCommand();
   const devOnceCommand = new AppDevOnceCommand();
+  const pullCommand = new AppPullCommand();
   const typecheckCommand = new AppTypecheckCommand();
   const addCommand = new EntityAddCommand();
+  const generateClientCommand = new AppGenerateClientCommand();
+  const translationsExtractCommand = new AppTranslationsExtractCommand();
 
   const devAction = async (
     appPath: string | undefined,
@@ -22,36 +29,147 @@ export const registerDevCommands = (program: Command): void => {
       verbose?: boolean;
       debug?: boolean;
       debounceMs?: string;
+      dryRun?: boolean;
+      force?: boolean;
+      delete: boolean;
     },
   ) => {
-    const commonOptions = {
-      appPath: formatPath(appPath),
-      verbose: options.verbose || options.debug,
-      debounceMs: options.debounceMs
-        ? parseInt(options.debounceMs, 10)
-        : undefined,
-    };
+    if (options.dryRun && !options.once) {
+      console.warn(
+        chalk.yellow(
+          '--dry-run only applies with --once. Ignoring it; run `yarn twenty plan` to preview changes.',
+        ),
+      );
+    }
+
+    const verbose = options.verbose || options.debug;
 
     if (options.once) {
-      await devOnceCommand.execute(commonOptions);
+      console.warn(
+        chalk.yellow(
+          options.dryRun
+            ? '⚠ `twenty dev --once --dry-run` is deprecated. Use `twenty plan` instead.'
+            : '⚠ `twenty dev --once` is deprecated. Use `twenty apply` instead.',
+        ),
+      );
+
+      await devOnceCommand.execute({
+        appPath: formatPath(appPath),
+        verbose,
+        apply: !options.dryRun,
+        force: options.force,
+        inferDeletionFromMissingEntities: options.delete,
+      });
 
       return;
     }
 
-    await devCommand.execute(commonOptions);
+    await devCommand.execute({
+      appPath: formatPath(appPath),
+      verbose,
+      debounceMs: options.debounceMs
+        ? parseInt(options.debounceMs, 10)
+        : undefined,
+      force: options.force,
+      inferDeletionFromMissingEntities: options.delete,
+    });
   };
 
   program
-    .command('dev [appPath]', { isDefault: true })
-    .description('Build and sync local changes (default command)')
+    .command('dev [appPath]')
+    .description('Build and sync local changes')
     .option(
       '-o, --once',
-      'Build and sync once, then exit (useful for CI, scripts, and pre-commit hooks)',
+      'Build and sync once, then exit (deprecated: use `twenty apply`)',
     )
-    .option('--debounceMs <ms>', 'Debounce in ms (default: 2 000)')
+    .option(
+      '--dry-run',
+      'Preview the metadata changes without applying them (deprecated: use `twenty plan`)',
+    )
+    .option(
+      '-f, --force',
+      'Apply destructive changes (deletes) without confirmation',
+    )
+    .option(
+      '--no-delete',
+      'Keep entities that are missing from your source instead of deleting them',
+    )
+    .option('--debounceMs <ms>', 'Debounce in ms (default: 1 000)')
     .option('-v, --verbose', 'Show detailed logs')
     .option('-d, --debug', 'Show detailed logs (alias for --verbose)')
     .action(devAction);
+
+  program
+    .command('plan [appPath]')
+    .description('Preview metadata changes without applying them')
+    .option(
+      '--no-delete',
+      'Keep entities that are missing from your source instead of deleting them',
+    )
+    .option('-v, --verbose', 'Show detailed logs')
+    .action(
+      async (
+        appPath: string | undefined,
+        options: { delete: boolean; verbose?: boolean },
+      ) => {
+        await devOnceCommand.execute({
+          appPath: formatPath(appPath),
+          verbose: options.verbose,
+          apply: false,
+          inferDeletionFromMissingEntities: options.delete,
+        });
+      },
+    );
+
+  program
+    .command('apply [appPath]')
+    .description('Apply local metadata changes after showing the plan')
+    .option(
+      '-f, --force',
+      'Apply destructive changes (deletes) without confirmation',
+    )
+    .option(
+      '--no-delete',
+      'Keep entities that are missing from your source instead of deleting them',
+    )
+    .option('-v, --verbose', 'Show detailed logs')
+    .action(
+      async (
+        appPath: string | undefined,
+        options: { force?: boolean; delete: boolean; verbose?: boolean },
+      ) => {
+        await devOnceCommand.execute({
+          appPath: formatPath(appPath),
+          verbose: options.verbose,
+          apply: true,
+          force: options.force,
+          inferDeletionFromMissingEntities: options.delete,
+        });
+      },
+    );
+
+  program
+    .command('pull [appPath]')
+    .description(
+      'Write the installed application back to local source files (experimental)',
+    )
+    .option(
+      '-u, --universal-identifier <id>',
+      'Universal identifier of the application to pull',
+    )
+    .option('-v, --verbose', 'Show detailed logs')
+    .action(
+      async (
+        appPath: string | undefined,
+        options: { universalIdentifier?: string; verbose?: boolean },
+      ) => {
+        await pullCommand.execute({
+          appPath: formatPath(appPath),
+          universalIdentifier: options.universalIdentifier,
+          verbose: options.verbose,
+        });
+      },
+    );
 
   program
     .command('dev:build [appPath]')
@@ -91,6 +209,31 @@ export const registerDevCommands = (program: Command): void => {
       const { CatalogSyncCommand } = await import('./catalog-sync');
       const cmd = new CatalogSyncCommand();
       await cmd.execute({ remote: options.remote });
+    });
+
+  program
+    .command('dev:generate-client [appPath]')
+    .description(
+      'Generate the typed API client for the built app from the active remote',
+    )
+    .action(async (appPath) => {
+      await generateClientCommand.execute({
+        appPath: formatPath(appPath),
+      });
+    });
+
+  program
+    .command('dev:translations-extract [appPath]')
+    .description('Extract translatable strings into locales/ catalogs')
+    .option(
+      '--locale <locale>',
+      'Scaffold an empty catalog for a target locale (e.g. fr-FR)',
+    )
+    .action(async (appPath, options) => {
+      await translationsExtractCommand.execute({
+        appPath: formatPath(appPath),
+        locale: options.locale,
+      });
     });
 
   registerDevFunctionCommands(program);

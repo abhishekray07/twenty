@@ -1,17 +1,16 @@
-import { isDefined } from 'twenty-shared/utils';
-import { SettingsTableCard } from '@/settings/components/SettingsTableCard';
+import { ToastOnQueryErrorEffect } from '@/apollo/components/ToastOnQueryErrorEffect';
 import { useApolloAdminClient } from '@/settings/admin-panel/apollo/hooks/useApolloAdminClient';
 import { SettingsAdminWorkerMetricsTooltip } from '@/settings/admin-panel/health-status/components/SettingsAdminWorkerMetricsTooltip';
-import { useSnackBarOnQueryError } from '@/apollo/hooks/useSnackBarOnQueryError';
+import { SettingsTableCard } from '@/settings/components/SettingsTableCard';
+import { useQuery } from '@apollo/client/react';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { ResponsiveLine } from '@nivo/line';
-import { useContext } from 'react';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
-import { useQuery } from '@apollo/client/react';
+import { capitalize, isDefined } from 'twenty-shared/utils';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 import {
-  QueueMetricsTimeRange,
   GetQueueMetricsDocument,
+  QueueMetricsTimeRange,
 } from '~/generated-admin/graphql';
 
 const StyledGraphContainer = styled.div`
@@ -32,11 +31,9 @@ const StyledNoDataMessage = styled.div`
   justify-content: center;
 `;
 
-const StyledSettingsTableCardContainer = styled.div`
-  > * {
-    padding-left: ${themeCssVariables.spacing[2]};
-    padding-right: ${themeCssVariables.spacing[2]};
-  }
+const StyledSettingsTableCard = styled(SettingsTableCard)`
+  padding-left: ${themeCssVariables.spacing[2]};
+  padding-right: ${themeCssVariables.spacing[2]};
 `;
 
 type SettingsAdminWorkerMetricsGraphProps = {
@@ -50,7 +47,7 @@ export const SettingsAdminWorkerMetricsGraph = ({
   timeRange,
 }: SettingsAdminWorkerMetricsGraphProps) => {
   const apolloAdminClient = useApolloAdminClient();
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   const { loading, data, error } = useQuery(GetQueueMetricsDocument, {
     client: apolloAdminClient,
@@ -60,8 +57,6 @@ export const SettingsAdminWorkerMetricsGraph = ({
     },
     fetchPolicy: 'no-cache',
   });
-
-  useSnackBarOnQueryError(error);
 
   const metricsData = data?.getQueueMetrics?.data || [];
   const hasData =
@@ -107,6 +102,8 @@ export const SettingsAdminWorkerMetricsGraph = ({
 
   return (
     <>
+      <ToastOnQueryErrorEffect error={error} />
+
       <StyledGraphContainer>
         {loading ? (
           <StyledNoDataMessage>{t`Loading metrics data...`}</StyledNoDataMessage>
@@ -202,25 +199,23 @@ export const SettingsAdminWorkerMetricsGraph = ({
         )}
       </StyledGraphContainer>
       {isDefined(metricsDetails) && (
-        <StyledSettingsTableCardContainer>
-          <SettingsTableCard
-            rounded
-            items={Object.entries(metricsDetails)
-              .filter(([key]) => key !== '__typename')
-              .map(([key, value]) => ({
-                label: key.charAt(0).toUpperCase() + key.slice(1),
-                value:
-                  typeof value === 'number'
-                    ? value
-                    : Array.isArray(value)
-                      ? value.length
-                      : String(value),
-              }))}
-            gridAutoColumns="1fr 1fr"
-            labelAlign="left"
-            valueAlign="right"
-          />
-        </StyledSettingsTableCardContainer>
+        <StyledSettingsTableCard
+          rounded
+          items={Object.entries(metricsDetails)
+            .filter(([key]) => key !== '__typename')
+            .map(([key, value]) => ({
+              label: capitalize(key),
+              value:
+                typeof value === 'number'
+                  ? value
+                  : Array.isArray(value)
+                    ? value.length
+                    : String(value),
+            }))}
+          gridAutoColumns="1fr 1fr"
+          labelAlign="left"
+          valueAlign="right"
+        />
       )}
     </>
   );

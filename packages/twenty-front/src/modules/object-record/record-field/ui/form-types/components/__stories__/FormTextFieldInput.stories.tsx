@@ -39,6 +39,27 @@ export const WithLabel: Story = {
     const canvas = within(canvasElement);
 
     await canvas.findByText(/^Text$/);
+
+    expect(await canvas.findByRole('textbox', { name: 'Text' })).toBeVisible();
+  },
+};
+
+export const WithError: Story = {
+  args: {
+    label: 'Variable Name',
+    placeholder: 'Text field...',
+    defaultValue: 'invalid name',
+    error:
+      'Use only letters, numbers, underscores, dots or hyphens (max 64 characters).',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    const error = await canvas.findByText(
+      'Use only letters, numbers, underscores, dots or hyphens (max 64 characters).',
+    );
+
+    expect(error).toBeVisible();
   },
 };
 

@@ -1,12 +1,12 @@
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
-import { useContext } from 'react';
 
 import { ObjectMetadataIcon } from '@/object-metadata/components/ObjectMetadataIcon';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { SettingsItemTypeTag } from '@/settings/components/SettingsItemTypeTag';
-import { IconBox, OverflowingTextWithTooltip } from 'twenty-ui/display';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { OverflowingTextWithTooltip } from 'twenty-ui/primitives/typography';
+import { IconBox } from 'twenty-ui/icon';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 export type SettingsDataModelObjectPreviewProps = {
   className?: string;
@@ -15,7 +15,7 @@ export type SettingsDataModelObjectPreviewProps = {
     | 'icon'
     | 'labelSingular'
     | 'labelPlural'
-    | 'isCustom'
+    | 'applicationId'
     | 'isRemote'
     | 'nameSingular'
     | 'color'
@@ -63,7 +63,7 @@ type SettingsDataModelObjectPreviewItemProps = {
     | 'icon'
     | 'labelSingular'
     | 'labelPlural'
-    | 'isCustom'
+    | 'applicationId'
     | 'isRemote'
     | 'nameSingular'
     | 'color'
@@ -78,7 +78,7 @@ const SettingsDataModelObjectPreviewItem = ({
   pluralizeLabel = true,
   index,
 }: SettingsDataModelObjectPreviewItemProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   return (
     <>
@@ -111,7 +111,7 @@ const SettingsDataModelObjectPreviewOtherObjects = ({
 }: {
   selected: number;
 }) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   return (
     <>

@@ -2,19 +2,24 @@ import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { isCloudflareIntegrationEnabledState } from '@/client-config/states/isCloudflareIntegrationEnabledState';
 import { isMultiWorkspaceEnabledState } from '@/client-config/states/isMultiWorkspaceEnabledState';
 import { SettingsCard } from '@/settings/components/SettingsCard';
+import { UndecoratedLink } from '@/ui/navigation/link/components/UndecoratedLink/UndecoratedLink';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
-import { IconWorld, Status } from 'twenty-ui/display';
-import { UndecoratedLink } from 'twenty-ui/navigation';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { IconWorld, IconWorldWww } from 'twenty-ui/icon';
+import { Status } from 'twenty-ui/primitives/data-display';
+import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme';
 
 const StyledContainer = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: ${themeCssVariables.spacing[2]};
+
+  @media (max-width: ${MOBILE_VIEWPORT}px) {
+    flex-direction: column;
+  }
 `;
 
 export const SettingsWorkspaceDomainCard = () => {
@@ -33,20 +38,23 @@ export const SettingsWorkspaceDomainCard = () => {
 
   return (
     <StyledContainer>
-      <UndecoratedLink to={getSettingsPath(SettingsPath.Subdomain)}>
-        <SettingsCard title={t`Subdomain`} Icon={<IconWorld />} />
+      <UndecoratedLink to={getSettingsPath(SettingsPath.Subdomain)} fullWidth>
+        <SettingsCard title={t`Subdomain`} Icon={<IconWorldWww />} />
       </UndecoratedLink>
       {isCloudflareIntegrationEnabled && (
-        <UndecoratedLink to={getSettingsPath(SettingsPath.CustomDomain)}>
+        <UndecoratedLink
+          to={getSettingsPath(SettingsPath.CustomDomain)}
+          fullWidth
+        >
           <SettingsCard
             title={t`Custom Domain`}
             Icon={<IconWorld />}
             Status={
               currentWorkspace?.customDomain &&
               currentWorkspace?.isCustomDomainEnabled ? (
-                <Status text={t`Active`} color="turquoise" />
+                <Status color="turquoise">{t`Active`}</Status>
               ) : currentWorkspace?.customDomain ? (
-                <Status text={t`Inactive`} color="orange" />
+                <Status color="orange">{t`Inactive`}</Status>
               ) : undefined
             }
           />

@@ -8,8 +8,8 @@ import {
   IllustrationIconTag,
   IllustrationIconTags,
   IllustrationIconText,
-} from 'twenty-ui/display';
-import { type SelectOption } from 'twenty-ui/input';
+} from 'twenty-ui/icon';
+import { type SelectOption } from 'twenty-ui/primitives/input';
 
 export const FORM_SELECT_FIELD_TYPE_OPTIONS: SelectOption<WorkflowFormFieldType>[] =
   [

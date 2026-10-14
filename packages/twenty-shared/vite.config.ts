@@ -1,8 +1,5 @@
-// @ts-expect-error: no type declarations for path in this config
 import path from 'path';
 import { defineConfig } from 'vite';
-import tsconfigPaths from 'vite-tsconfig-paths';
-// @ts-expect-error: importing JSON without resolveJsonModule
 import packageJson from './package.json';
 
 const moduleEntries = Object.keys((packageJson as any).exports || {})
@@ -39,15 +36,11 @@ export default defineConfig(() => {
     root: __dirname,
     cacheDir: '../../node_modules/.vite/packages/twenty-shared',
     resolve: {
+      tsconfigPaths: true,
       alias: {
         '@/': path.resolve(__dirname, 'src') + '/',
       },
     },
-    plugins: [
-      tsconfigPaths({
-        root: __dirname,
-      }),
-    ],
     build: {
       emptyOutDir: false,
       outDir: 'dist',
@@ -56,6 +49,8 @@ export default defineConfig(() => {
         external: [
           ...Object.keys((packageJson as any).dependencies || {}),
           'typescript',
+          // TODO: i18n now hashes with @noble/hashes, so this node:crypto external looks removable.
+          'node:crypto',
         ],
         output: [
           {
@@ -64,7 +59,6 @@ export default defineConfig(() => {
           },
           {
             format: 'cjs',
-            interop: 'auto',
             esModule: true,
             exports: 'named',
             entryFileNames: (chunk) => entryFileNames(chunk, 'cjs'),

@@ -16,7 +16,6 @@ const createMockRelation = (
   targetFieldMetadata: {
     id: 'target-field-id',
     name: 'targetField',
-    isCustom: false,
   },
   sourceObjectMetadata: {
     id: 'source-object-id',
@@ -62,7 +61,6 @@ const mockMorphFieldWithRelations: FieldMetadataItem = {
   ],
 } as FieldMetadataItem;
 
-// Mock multiple regular relation fields (for multiple target testing)
 const mockMultipleRelationFields: FieldMetadataItem[] = [
   {
     id: 'relation-field-company-id',

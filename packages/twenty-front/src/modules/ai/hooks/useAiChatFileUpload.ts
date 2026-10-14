@@ -1,90 +1,73 @@
 import { agentChatSelectedFilesState } from '@/ai/states/agentChatSelectedFilesState';
 import { agentChatUploadedFilesState } from '@/ai/states/agentChatUploadedFilesState';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
-import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
-import { useApolloClient, useMutation } from '@apollo/client/react';
+import { useDirectFileUpload } from '@/file/hooks/useDirectFileUpload';
+import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { useLingui } from '@lingui/react/macro';
-import { isDefined } from 'twenty-shared/utils';
+import { useStore } from 'jotai';
+import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
+import { useToast } from 'twenty-ui/components/feedback';
 
-import { type AgentChatFileUIPart } from '@/ai/types/agent-chat-file-ui-part.type';
-import { UploadAiChatFileDocument } from '~/generated-metadata/graphql';
+import { type AgentChatFileUIPart } from '@/ai/types/AgentChatFileUIPart';
+import { FileFolder } from '~/generated-metadata/graphql';
 
 export const useAiChatFileUpload = () => {
-  const apolloClient = useApolloClient();
-  const [uploadAiChatFile] = useMutation(UploadAiChatFileDocument, {
-    client: apolloClient,
-  });
+  const { uploadFile: directUploadFile } = useDirectFileUpload();
   const { t } = useLingui();
-  const { enqueueErrorSnackBar } = useSnackBar();
-  const [agentChatSelectedFiles, setAgentChatSelectedFiles] = useAtomState(
+  const { enqueueToast } = useToast();
+  const setAgentChatSelectedFiles = useSetAtomState(
     agentChatSelectedFilesState,
   );
-  const [agentChatUploadedFiles, setAgentChatUploadedFiles] = useAtomState(
+  const setAgentChatUploadedFiles = useSetAtomState(
     agentChatUploadedFilesState,
   );
+  const store = useStore();
 
   const sendFile = async (file: File): Promise<AgentChatFileUIPart | null> => {
     try {
-      const result = await uploadAiChatFile({
-        variables: {
-          file,
-        },
+      const uploadedFile = await directUploadFile(file, {
+        fileFolder: FileFolder.AgentChat,
       });
 
-      const response = result?.data?.uploadAiChatFile;
-
-      if (!isDefined(response)) {
-        throw new Error(t`Couldn't upload the file.`);
+      if (!store.get(agentChatSelectedFilesState.atom).includes(file)) {
+        return null;
       }
 
-      setAgentChatSelectedFiles(
-        agentChatSelectedFiles.filter((f) => f.name !== file.name),
-      );
       return {
         filename: file.name,
         mediaType: file.type,
-        url: response.url,
-        fileId: response.id,
+        url: uploadedFile.url,
+        fileId: uploadedFile.id,
         type: 'file',
       };
     } catch {
       const fileName = file.name;
-      enqueueErrorSnackBar({
-        message: t`Failed to upload file: ${fileName}`,
+      enqueueToast({
+        status: 'error',
+        children: t`Failed to upload file: ${fileName}`,
       });
       return null;
+    } finally {
+      setAgentChatSelectedFiles((previousSelectedFiles) =>
+        previousSelectedFiles.filter((selectedFile) => selectedFile !== file),
+      );
     }
   };
 
   const uploadFiles = async (files: File[]) => {
-    const uploadResults = await Promise.allSettled(
-      files.map((file) => sendFile(file)),
+    setAgentChatSelectedFiles((previousSelectedFiles) => [
+      ...previousSelectedFiles,
+      ...files,
+    ]);
+
+    const successfulUploads = (await Promise.all(files.map(sendFile))).filter(
+      isDefined,
     );
 
-    const successfulUploads = uploadResults.reduce<AgentChatFileUIPart[]>(
-      (acc, result) => {
-        if (result.status === 'fulfilled' && isDefined(result.value)) {
-          acc.push(result.value);
-        }
-        return acc;
-      },
-      [],
-    );
-
-    if (successfulUploads.length > 0) {
-      setAgentChatUploadedFiles([
-        ...agentChatUploadedFiles,
+    if (isNonEmptyArray(successfulUploads)) {
+      setAgentChatUploadedFiles((previousUploadedFiles) => [
+        ...previousUploadedFiles,
         ...successfulUploads,
       ]);
-    }
-
-    const failedCount = uploadResults.filter(
-      (result) => result.status === 'rejected',
-    ).length;
-    if (failedCount > 0) {
-      enqueueErrorSnackBar({
-        message: t`${failedCount} file(s) failed to upload`,
-      });
     }
   };
 

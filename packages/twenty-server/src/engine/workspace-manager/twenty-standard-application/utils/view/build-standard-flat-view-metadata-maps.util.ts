@@ -8,10 +8,14 @@ import { computeStandardBlocklistViews } from 'src/engine/workspace-manager/twen
 import { computeStandardCalendarChannelEventAssociationViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-calendar-channel-event-association-views.util';
 import { computeStandardCalendarEventParticipantViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-calendar-event-participant-views.util';
 import { computeStandardCalendarEventViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-calendar-event-views.util';
+import { computeStandardCallRecordingViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-call-recording-views.util';
 import { computeStandardCompanyViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-company-views.util';
 import { computeStandardDashboardViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-dashboard-views.util';
+import { computeStandardMessageCampaignViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-campaign-views.util';
 import { computeStandardMessageChannelMessageAssociationMessageFolderViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-channel-message-association-message-folder-views.util';
 import { computeStandardMessageChannelMessageAssociationViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-channel-message-association-views.util';
+import { computeStandardMessageListViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-list-views.util';
+import { computeStandardMessageListMemberViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-list-member-views.util';
 import { computeStandardMessageParticipantViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-participant-views.util';
 import { computeStandardMessageThreadViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-thread-views.util';
 import { computeStandardMessageViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-views.util';
@@ -40,13 +44,17 @@ const STANDARD_FLAT_VIEW_METADATA_BUILDERS_BY_OBJECT_NAME = {
     computeStandardCalendarChannelEventAssociationViews,
   calendarEvent: computeStandardCalendarEventViews,
   calendarEventParticipant: computeStandardCalendarEventParticipantViews,
+  callRecording: computeStandardCallRecordingViews,
   company: computeStandardCompanyViews,
   dashboard: computeStandardDashboardViews,
   message: computeStandardMessageViews,
+  messageCampaign: computeStandardMessageCampaignViews,
   messageChannelMessageAssociation:
     computeStandardMessageChannelMessageAssociationViews,
   messageChannelMessageAssociationMessageFolder:
     computeStandardMessageChannelMessageAssociationMessageFolderViews,
+  messageList: computeStandardMessageListViews,
+  messageListMember: computeStandardMessageListMemberViews,
   messageParticipant: computeStandardMessageParticipantViews,
   messageThread: computeStandardMessageThreadViews,
   note: computeStandardNoteViews,

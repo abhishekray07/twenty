@@ -1,17 +1,21 @@
 /* @license Enterprise */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 
 import { isDefined } from 'twenty-shared/utils';
-import { type Repository } from 'typeorm';
 
+import { NO_BILLING_SUBSCRIPTION } from 'src/engine/core-modules/billing/constants/no-billing-subscription.constant';
+import { BillingCustomerEntity } from 'src/engine/core-modules/billing/entities/billing-customer.entity';
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { type BillingEntitlementKey } from 'src/engine/core-modules/billing/enums/billing-entitlement-key.enum';
+import { SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
 import { BillingProductService } from 'src/engine/core-modules/billing/services/billing-product.service';
 import { BillingSubscriptionService } from 'src/engine/core-modules/billing/services/billing-subscription.service';
+import { StripeCustomerService } from 'src/engine/core-modules/billing/stripe/services/stripe-customer.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
-
+import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
+import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 @Injectable()
 export class BillingService {
   protected readonly logger = new Logger(BillingService.name);
@@ -19,12 +23,42 @@ export class BillingService {
     private readonly twentyConfigService: TwentyConfigService,
     private readonly billingSubscriptionService: BillingSubscriptionService,
     private readonly billingProductService: BillingProductService,
-    @InjectRepository(BillingSubscriptionEntity)
-    private readonly billingSubscriptionRepository: Repository<BillingSubscriptionEntity>,
+    private readonly stripeCustomerService: StripeCustomerService,
+    private readonly workspaceCacheService: WorkspaceCacheService,
+    @InjectWorkspaceScopedRepository(BillingSubscriptionEntity)
+    private readonly billingSubscriptionRepository: WorkspaceScopedRepository<BillingSubscriptionEntity>,
+    @InjectWorkspaceScopedRepository(BillingCustomerEntity)
+    private readonly billingCustomerRepository: WorkspaceScopedRepository<BillingCustomerEntity>,
   ) {}
 
   isBillingEnabled() {
     return this.twentyConfigService.get('IS_BILLING_ENABLED');
+  }
+
+  async ensureBillingCustomer({
+    userEmail,
+    workspaceId,
+    workspaceDisplayName,
+    partner,
+  }: {
+    userEmail: string;
+    workspaceId: string;
+    workspaceDisplayName: string | undefined;
+    partner?: string;
+  }): Promise<void> {
+    const existingBillingCustomer =
+      await this.billingCustomerRepository.findOne(workspaceId, { where: {} });
+
+    if (isDefined(existingBillingCustomer)) {
+      return;
+    }
+
+    await this.stripeCustomerService.createStripeCustomer({
+      userEmail,
+      workspaceId,
+      customerName: workspaceDisplayName,
+      partner,
+    });
   }
 
   async hasWorkspaceAnySubscription(workspaceId: string) {
@@ -34,9 +68,10 @@ export class BillingService {
       return true;
     }
 
-    const subscription = await this.billingSubscriptionRepository.findOne({
-      where: { workspaceId },
-    });
+    const subscription = await this.billingSubscriptionRepository.findOne(
+      workspaceId,
+      { where: {} },
+    );
 
     return isDefined(subscription);
   }
@@ -54,6 +89,24 @@ export class BillingService {
     return this.billingSubscriptionService.getWorkspaceEntitlementByKey(
       workspaceId,
       entitlementKey,
+    );
+  }
+
+  async isPayingCustomer(workspaceId: string) {
+    const isBillingEnabled = this.isBillingEnabled();
+
+    if (!isBillingEnabled) {
+      return true;
+    }
+
+    const { currentBillingSubscription } =
+      await this.workspaceCacheService.getOrRecompute(workspaceId, [
+        'currentBillingSubscription',
+      ]);
+
+    return (
+      currentBillingSubscription !== NO_BILLING_SUBSCRIPTION &&
+      currentBillingSubscription.status === SubscriptionStatus.Active
     );
   }
 

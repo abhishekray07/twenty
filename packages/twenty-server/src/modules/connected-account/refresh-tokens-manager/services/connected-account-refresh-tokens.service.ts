@@ -6,19 +6,29 @@ import { assertUnreachable, isDefined } from 'twenty-shared/utils';
 import { Repository } from 'typeorm';
 
 import { AppOAuthRefreshAccessTokenService } from 'src/engine/core-modules/application/connection-provider/refresh/services/app-oauth-refresh-tokens.service';
+import { type EncryptedString } from 'src/engine/core-modules/secret-encryption/branded-strings/encrypted-string.type';
+import { type PlaintextString } from 'src/engine/core-modules/secret-encryption/branded-strings/plaintext-string.type';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import {
   ConnectedAccountRefreshAccessTokenException,
   ConnectedAccountRefreshAccessTokenExceptionCode,
 } from 'src/engine/metadata-modules/connected-account/exceptions/connected-account-refresh-tokens.exception';
 import { ConnectedAccountTokenEncryptionService } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.service';
-import { GoogleAPIRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/google/services/google-api-refresh-tokens.service';
-import { MicrosoftAPIRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/microsoft/services/microsoft-api-refresh-tokens.service';
+import { GoogleApiRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/google/services/google-api-refresh-tokens.service';
+import { MicrosoftApiRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/microsoft/services/microsoft-api-refresh-tokens.service';
 
-export type ConnectedAccountTokens = {
-  accessToken: string;
-  refreshToken: string | null;
+// Encrypted and plaintext shapes are modeled separately so they cannot be mixed (#20819)
+export type ConnectedAccountPlaintextTokens = {
+  accessToken: PlaintextString;
+  refreshToken: PlaintextString | null;
 };
+
+export type ConnectedAccountEncryptedTokens = {
+  accessToken: EncryptedString;
+  refreshToken: EncryptedString | null;
+};
+
+export type ConnectedAccountTokens = ConnectedAccountEncryptedTokens;
 
 const CONNECTED_ACCOUNT_ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 60;
 
@@ -29,8 +39,8 @@ export class ConnectedAccountRefreshTokensService {
   );
 
   constructor(
-    private readonly googleAPIRefreshAccessTokenService: GoogleAPIRefreshAccessTokenService,
-    private readonly microsoftAPIRefreshAccessTokenService: MicrosoftAPIRefreshAccessTokenService,
+    private readonly googleApiRefreshAccessTokenService: GoogleApiRefreshAccessTokenService,
+    private readonly microsoftApiRefreshAccessTokenService: MicrosoftApiRefreshAccessTokenService,
     private readonly appOAuthRefreshAccessTokenService: AppOAuthRefreshAccessTokenService,
     private readonly connectedAccountTokenEncryptionService: ConnectedAccountTokenEncryptionService,
     @InjectRepository(ConnectedAccountEntity)
@@ -91,7 +101,7 @@ export class ConnectedAccountRefreshTokensService {
 
   private async performRefreshAndSave(
     connectedAccount: ConnectedAccountEntity,
-    encryptedRefreshToken: string,
+    encryptedRefreshToken: EncryptedString,
     workspaceId: string,
   ): Promise<ConnectedAccountTokens> {
     const decryptedRefreshToken =
@@ -137,6 +147,14 @@ export class ConnectedAccountRefreshTokensService {
       case ConnectedAccountProvider.GOOGLE:
       case ConnectedAccountProvider.MICROSOFT:
       case ConnectedAccountProvider.APP: {
+        // TODO: drive this from the connection provider definition
+        if (
+          connectedAccount.provider === ConnectedAccountProvider.APP &&
+          !isDefined(connectedAccount.refreshToken)
+        ) {
+          return true;
+        }
+
         if (!connectedAccount.lastCredentialsRefreshedAt) {
           return false;
         }
@@ -166,17 +184,17 @@ export class ConnectedAccountRefreshTokensService {
 
   async refreshTokens(
     connectedAccount: ConnectedAccountEntity,
-    refreshToken: string,
+    refreshToken: PlaintextString,
     workspaceId: string,
-  ): Promise<ConnectedAccountTokens> {
+  ): Promise<ConnectedAccountPlaintextTokens> {
     try {
       switch (connectedAccount.provider) {
         case ConnectedAccountProvider.GOOGLE:
-          return await this.googleAPIRefreshAccessTokenService.refreshTokens(
+          return await this.googleApiRefreshAccessTokenService.refreshTokens(
             refreshToken,
           );
         case ConnectedAccountProvider.MICROSOFT:
-          return await this.microsoftAPIRefreshAccessTokenService.refreshTokens(
+          return await this.microsoftApiRefreshAccessTokenService.refreshTokens(
             refreshToken,
           );
         case ConnectedAccountProvider.APP:

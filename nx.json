@@ -99,6 +99,15 @@
       },
       "dependsOn": ["^build"]
     },
+    "knip": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "dependsOn": ["^build", "twenty-shared:build"],
+      "inputs": ["default", "{workspaceRoot}/knip.json"],
+      "options": {
+        "command": "knip --workspace {projectRoot}"
+      }
+    },
     "test": {
       "executor": "@nx/jest:jest",
       "cache": true,
@@ -112,16 +121,17 @@
       "options": {
         "jestConfig": "{projectRoot}/jest.config.mjs",
         "silent": true,
-        "coverage": true,
         "coverageReporters": ["text-summary"],
         "cacheDirectory": "../../.cache/jest/{projectRoot}"
       },
       "configurations": {
         "ci": {
           "ci": true,
-          "maxWorkers": 1
+          "maxWorkers": 1,
+          "coverage": true
         },
         "coverage": {
+          "coverage": true,
           "coverageReporters": ["lcov", "text"]
         },
         "watch": {
@@ -189,6 +199,7 @@
     },
     "storybook:test:no-coverage": {
       "executor": "nx:run-commands",
+      "cache": true,
       "inputs": ["^default", "excludeTests"],
       "options": {
         "cwd": "{projectRoot}",
@@ -217,25 +228,6 @@
       "configurations": {
         "text": {
           "reporter": "text"
-        }
-      }
-    },
-    "chromatic": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "{projectRoot}",
-        "commands": [
-          {
-            "command": "nx storybook:build {projectName}",
-            "forwardAllArgs": false
-          },
-          "chromatic --storybook-build-dir=storybook-static {args.ci}"
-        ],
-        "parallel": false
-      },
-      "configurations": {
-        "ci": {
-          "ci": "--exit-zero-on-changes"
         }
       }
     },
@@ -298,5 +290,6 @@
   "defaultBase": "main",
   "tui": {
     "enabled": false
-  }
+  },
+  "analytics": false
 }

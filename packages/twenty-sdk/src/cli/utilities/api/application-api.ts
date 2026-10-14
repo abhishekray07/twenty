@@ -1,6 +1,13 @@
 import { type ApiResponse } from '@/cli/utilities/api/api-response-type';
-import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
+import { type ApplicationExport } from '@/cli/utilities/pull/application-export-type';
+import { serializeError } from '@/cli/utilities/error/serialize-error';
+import axios, { type AxiosInstance } from 'axios';
 import { type Manifest } from 'twenty-shared/application';
+import {
+  type MetadataValidationErrorResponse,
+  type SyncAction,
+} from 'twenty-shared/metadata';
+import { isDefined } from 'twenty-shared/utils';
 
 export class ApplicationApi {
   constructor(private readonly client: AxiosInstance) {}
@@ -99,6 +106,67 @@ export class ApplicationApi {
     }
   }
 
+  async exportApplication(
+    universalIdentifier: string,
+  ): Promise<ApiResponse<ApplicationExport>> {
+    try {
+      const query = `
+        query ExportApplication($universalIdentifier: UUID!) {
+          exportApplication(universalIdentifier: $universalIdentifier) {
+            application {
+              universalIdentifier
+              displayName
+              sourceType
+            }
+            manifest
+            coverage {
+              metadataName
+              universalIdentifier
+              status
+              reason
+            }
+            files {
+              folder
+              path
+              content
+            }
+          }
+        }
+      `;
+
+      const response = await this.client.post(
+        '/metadata',
+        {
+          query,
+          variables: { universalIdentifier },
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: '*/*',
+          },
+        },
+      );
+
+      if (response.data.errors) {
+        return {
+          success: false,
+          error: response.data.errors[0],
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data.data.exportApplication,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error,
+      };
+    }
+  }
+
   async createApplicationRegistration(input: {
     name: string;
     universalIdentifier: string;
@@ -109,7 +177,6 @@ export class ApplicationApi {
         universalIdentifier: string;
         oAuthClientId: string;
       };
-      clientSecret: string;
     }>
   > {
     try {
@@ -121,7 +188,6 @@ export class ApplicationApi {
               universalIdentifier
               oAuthClientId
             }
-            clientSecret
           }
         }
       `;
@@ -159,23 +225,21 @@ export class ApplicationApi {
     }
   }
 
-  async rotateApplicationRegistrationClientSecret(
-    id: string,
-  ): Promise<ApiResponse<{ clientSecret: string }>> {
+  async getApplicationCoreGraphqlSchema(
+    applicationUniversalIdentifier: string,
+  ): Promise<ApiResponse<string>> {
     try {
-      const mutation = `
-        mutation RotateApplicationRegistrationClientSecret($id: String!) {
-          rotateApplicationRegistrationClientSecret(id: $id) {
-            clientSecret
-          }
+      const query = `
+        query ApplicationCoreGraphqlSchema($applicationUniversalIdentifier: String!) {
+          applicationCoreGraphqlSchema(applicationUniversalIdentifier: $applicationUniversalIdentifier)
         }
       `;
 
       const response = await this.client.post(
         '/metadata',
         {
-          query: mutation,
-          variables: { id },
+          query,
+          variables: { applicationUniversalIdentifier },
         },
         {
           headers: {
@@ -194,7 +258,7 @@ export class ApplicationApi {
 
       return {
         success: true,
-        data: response.data.data.rotateApplicationRegistrationClientSecret,
+        data: response.data.data.applicationCoreGraphqlSchema,
       };
     } catch (error) {
       return {
@@ -251,20 +315,53 @@ export class ApplicationApi {
     }
   }
 
-  async syncApplication(manifest: Manifest): Promise<ApiResponse> {
+  async syncApplication(
+    manifest: Manifest,
+    options?: { dryRun?: boolean; inferDeletionFromMissingEntities?: boolean },
+  ): Promise<
+    ApiResponse<
+      {
+        applicationUniversalIdentifier: string;
+        actions: SyncAction[];
+      },
+      MetadataValidationErrorResponse
+    >
+  > {
     try {
+      const optionalArguments = [
+        options?.dryRun ? 'dryRun' : null,
+        options?.inferDeletionFromMissingEntities === false
+          ? 'inferDeletionFromMissingEntities'
+          : null,
+      ].filter(isDefined);
+
+      const variableDeclarations = [
+        '$manifest: JSON!',
+        ...optionalArguments.map((argument) => `$${argument}: Boolean`),
+      ].join(', ');
+      const argumentAssignments = [
+        'manifest: $manifest',
+        ...optionalArguments.map((argument) => `${argument}: $${argument}`),
+      ].join(', ');
+
       const mutation = `
-        mutation SyncApplication($manifest: JSON!) {
-          syncApplication(manifest: $manifest) {
+        mutation SyncApplication(${variableDeclarations}) {
+          syncApplication(${argumentAssignments}) {
             applicationUniversalIdentifier
             actions
           }
         }
       `;
 
-      const variables = { manifest };
+      const variables = {
+        manifest,
+        ...(options?.dryRun ? { dryRun: true } : {}),
+        ...(options?.inferDeletionFromMissingEntities === false
+          ? { inferDeletionFromMissingEntities: false }
+          : {}),
+      };
 
-      const response: AxiosResponse = await this.client.post(
+      const response = await this.client.post(
         '/metadata',
         {
           query: mutation,
@@ -281,7 +378,8 @@ export class ApplicationApi {
       if (response.data.errors) {
         return {
           success: false,
-          error: response.data.errors[0],
+          error: response.data.errors[0]?.extensions,
+          message: response.data.errors[0]?.message,
         };
       }
 
@@ -291,27 +389,9 @@ export class ApplicationApi {
         message: `Successfully synced application: ${manifest.application.displayName}`,
       };
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        const graphqlErrors = error.response.data?.errors;
-
-        if (Array.isArray(graphqlErrors) && graphqlErrors.length > 0) {
-          return {
-            success: false,
-            error: graphqlErrors[0]?.message || error.message,
-          };
-        }
-
-        return {
-          success: false,
-          error:
-            error.response.data?.message ||
-            `HTTP ${error.response.status}: ${error.message}`,
-        };
-      }
-
       return {
         success: false,
-        error: error instanceof Error ? error.message : error,
+        message: serializeError(error),
       };
     }
   }
@@ -328,7 +408,7 @@ export class ApplicationApi {
 
       const variables = { universalIdentifier };
 
-      const response: AxiosResponse = await this.client.post(
+      const response = await this.client.post(
         '/metadata',
         {
           query: mutation,

@@ -1,29 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { once } from 'events';
 import { type WriteStream, createWriteStream, mkdirSync } from 'fs';
 import { finished } from 'stream/promises';
 
-import {
-  DataSource,
-  type EntityMetadata,
-  type QueryRunner,
-  Repository,
-} from 'typeorm';
+import { DataSource, type EntityMetadata, type QueryRunner } from 'typeorm';
 
-import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
-import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
-import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
-import { computeTableName } from 'src/engine/utils/compute-table-name.util';
-import { escapeIdentifier } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
-import { getCoreEntityMetadatasWithWorkspaceId } from 'src/database/commands/workspace-export/utils/get-core-entity-metadatas-with-workspace-id.util';
-import { generateWorkspaceSchemaDdl } from 'src/database/commands/workspace-export/utils/generate-workspace-schema-ddl.util';
 import { buildInsertPrefix } from 'src/database/commands/workspace-export/utils/build-insert-prefix.util';
 import { buildWorkspaceTableColumnSets } from 'src/database/commands/workspace-export/utils/build-workspace-table-column-sets.util';
 import { formatSqlValue } from 'src/database/commands/workspace-export/utils/format-sql-value.util';
-import { formatPgCopyField } from './utils/format-pg-copy-value.util';
+import { generateWorkspaceSchemaDdl } from 'src/database/commands/workspace-export/utils/generate-workspace-schema-ddl.util';
+import { getCoreEntityMetadatasWithWorkspaceId } from 'src/database/commands/workspace-export/utils/get-core-entity-metadatas-with-workspace-id.util';
+import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
+import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
+import { SearchFieldMetadataEntity } from 'src/engine/metadata-modules/search-field-metadata/search-field-metadata.entity';
+import { computeTableName } from 'src/engine/utils/compute-table-name.util';
+import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
+import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-applications';
+import { escapeIdentifier } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
+import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 import { isNonEmptyArray } from 'twenty-shared/utils';
+import { formatPgCopyField } from './utils/format-pg-copy-value.util';
 
 const BATCH_SIZE = 10_000;
 
@@ -52,10 +51,12 @@ export class WorkspaceExportService {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
-    @InjectRepository(ObjectMetadataEntity)
-    private readonly objectMetadataRepository: Repository<ObjectMetadataEntity>,
-    @InjectRepository(FieldMetadataEntity)
-    private readonly fieldMetadataRepository: Repository<FieldMetadataEntity>,
+    @InjectWorkspaceScopedRepository(ObjectMetadataEntity)
+    private readonly objectMetadataRepository: WorkspaceScopedRepository<ObjectMetadataEntity>,
+    @InjectWorkspaceScopedRepository(FieldMetadataEntity)
+    private readonly fieldMetadataRepository: WorkspaceScopedRepository<FieldMetadataEntity>,
+    @InjectWorkspaceScopedRepository(SearchFieldMetadataEntity)
+    private readonly searchFieldMetadataRepository: WorkspaceScopedRepository<SearchFieldMetadataEntity>,
   ) {}
 
   async exportWorkspace({
@@ -75,13 +76,12 @@ export class WorkspaceExportService {
 
     this.logger.log(`Exporting workspace ${workspaceId} (${schemaName})`);
 
-    const objectMetadatas = await this.objectMetadataRepository.find({
-      where: { workspaceId },
-    });
+    const objectMetadatas = await this.objectMetadataRepository.find(
+      workspaceId,
+      { relations: { application: true } },
+    );
 
-    const fieldMetadatas = await this.fieldMetadataRepository.find({
-      where: { workspaceId },
-    });
+    const fieldMetadatas = await this.fieldMetadataRepository.find(workspaceId);
 
     const fieldsByObjectId = new Map<string, FieldMetadataEntity[]>();
 
@@ -91,6 +91,27 @@ export class WorkspaceExportService {
 
       objectFields.push(fieldMetadata);
       fieldsByObjectId.set(fieldMetadata.objectMetadataId, objectFields);
+    }
+
+    const searchFieldMetadatas =
+      await this.searchFieldMetadataRepository.find(workspaceId);
+
+    const searchFieldMetadatasByObjectId = new Map<
+      string,
+      SearchFieldMetadataEntity[]
+    >();
+
+    for (const searchFieldMetadata of searchFieldMetadatas) {
+      const objectSearchFieldMetadatas =
+        searchFieldMetadatasByObjectId.get(
+          searchFieldMetadata.objectMetadataId,
+        ) ?? [];
+
+      objectSearchFieldMetadatas.push(searchFieldMetadata);
+      searchFieldMetadatasByObjectId.set(
+        searchFieldMetadata.objectMetadataId,
+        objectSearchFieldMetadatas,
+      );
     }
 
     mkdirSync(outputPath, { recursive: true });
@@ -115,6 +136,7 @@ export class WorkspaceExportService {
         schemaName,
         objectMetadatas,
         fieldsByObjectId,
+        searchFieldMetadatasByObjectId,
         stream,
       );
 
@@ -325,6 +347,7 @@ export class WorkspaceExportService {
     schemaName: string,
     objectMetadatas: ObjectMetadataEntity[],
     fieldsByObjectId: Map<string, FieldMetadataEntity[]>,
+    searchFieldMetadatasByObjectId: Map<string, SearchFieldMetadataEntity[]>,
     stream: WriteStream,
   ): void {
     this.logger.log('Generating workspace schema DDL from metadata...');
@@ -334,6 +357,7 @@ export class WorkspaceExportService {
       schemaName,
       objectMetadatas,
       fieldsByObjectId,
+      searchFieldMetadatasByObjectId,
     );
 
     this.logger.log(`  ${ddlStatements.length} DDL statements`);
@@ -359,7 +383,8 @@ export class WorkspaceExportService {
 
       const tableName = computeTableName(
         objectMetadata.nameSingular,
-        objectMetadata.isCustom,
+        objectMetadata.application?.universalIdentifier !==
+          TWENTY_STANDARD_APPLICATION.universalIdentifier,
       );
 
       if (tableFilter && !tableFilter.includes(objectMetadata.nameSingular)) {

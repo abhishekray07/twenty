@@ -1,21 +1,24 @@
 import { useGetAvailablePackages } from '@/logic-functions/hooks/useGetAvailablePackages';
 import { useLogicFunctionForm } from '@/logic-functions/hooks/useLogicFunctionForm';
 import { useFullScreenModal } from '@/ui/layout/fullscreen/hooks/useFullScreenModal';
-import { type BreadcrumbProps } from '@/ui/navigation/bread-crumb/components/Breadcrumb';
+import { TabListRoot } from '@/ui/layout/tab-list/components/TabListRoot';
+import { type BreadcrumbProps } from '@/ui/navigation/bread-crumb/types/BreadcrumbProps';
 import { useGetUpdatableWorkflowVersionOrThrow } from '@/workflow/hooks/useGetUpdatableWorkflowVersionOrThrow';
 import { useWorkflowWithCurrentVersion } from '@/workflow/hooks/useWorkflowWithCurrentVersion';
 import { workflowVisualizerWorkflowIdComponentState } from '@/workflow/states/workflowVisualizerWorkflowIdComponentState';
 import { type WorkflowCodeAction } from '@/workflow/types/Workflow';
+import { WorkflowStepTabPanel } from '@/workflow/workflow-steps/components/WorkflowStepTabPanel';
 import { setNestedValue } from '@/workflow/workflow-steps/workflow-actions/code-action/utils/setNestedValue';
 
 import { LogicFunctionExecutionResult } from '@/logic-functions/components/LogicFunctionExecutionResult';
 import { LogicFunctionLogs } from '@/logic-functions/components/LogicFunctionLogs';
-import { InputLabel } from '@/ui/input/components/InputLabel';
+import { InputLabel } from '@/ui/input/components/internal/InputLabel/InputLabel';
 import { TabList } from '@/ui/layout/tab-list/components/TabList';
 import { activeTabIdComponentState } from '@/ui/layout/tab-list/states/activeTabIdComponentState';
 import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotkeysOnFocusedElement';
 import { useListenClickOutside } from '@/ui/utilities/pointer-event/hooks/useListenClickOutside';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { WorkflowExpectedOutputBodyInput } from '@/workflow/workflow-steps/components/WorkflowExpectedOutputBodyInput';
 import { WorkflowStepBody } from '@/workflow/workflow-steps/components/WorkflowStepBody';
 import { WorkflowStepCmdEnterButton } from '@/workflow/workflow-steps/components/WorkflowStepCmdEnterButton';
 import { WorkflowCodeEditor } from '@/workflow/workflow-steps/workflow-actions/code-action/components/WorkflowCodeEditor';
@@ -27,6 +30,7 @@ import { mergeDefaultFunctionInputAndFunctionInput } from '@/workflow/workflow-s
 import { WorkflowVariablePicker } from '@/workflow/workflow-variables/components/WorkflowVariablePicker';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
+import { CodeEditor } from 'twenty-ui/components/code-editor';
 
 import { LogicFunctionTestInputInitEffect } from '@/logic-functions/components/LogicFunctionTestInputInitEffect';
 import { useExecuteLogicFunction } from '@/logic-functions/hooks/useExecuteLogicFunction';
@@ -44,9 +48,8 @@ import {
 } from 'twenty-shared/logic-function';
 import { isDefined } from 'twenty-shared/utils';
 import { getFunctionInputFromInputSchema } from 'twenty-shared/workflow';
-import { IconCode, IconPlayerPlay } from 'twenty-ui/display';
-import { CodeEditor } from 'twenty-ui/input';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { IconCode, IconPlayerPlay } from 'twenty-ui/icon';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { useIsMobile } from 'twenty-ui/utilities';
 import { useDebouncedCallback } from 'use-debounce';
 
@@ -205,6 +208,22 @@ export const WorkflowEditActionCode = ({
     });
   };
 
+  const handleExpectedOutputBodyChange = (
+    parsedValue: Record<string, unknown>,
+  ) => {
+    if (actionOptions.readonly === true) {
+      return;
+    }
+
+    updateAction({
+      ...action,
+      settings: {
+        ...action.settings,
+        expectedOutputSchema: parsedValue,
+      },
+    });
+  };
+
   const handleTestInputChange = async (value: any, path: string[]) => {
     if (actionOptions.readonly === true) {
       return;
@@ -254,8 +273,12 @@ export const WorkflowEditActionCode = ({
     500,
   );
 
-  const handleCodeChange = async (newCode: string) => {
-    if (actionOptions.readonly === true || !isDefined(workflow)) {
+  const handleCodeChange = async (newCode: string | undefined) => {
+    if (
+      actionOptions.readonly === true ||
+      !isDefined(workflow) ||
+      !isDefined(newCode)
+    ) {
       return;
     }
 
@@ -358,7 +381,6 @@ export const WorkflowEditActionCode = ({
             readOnly: actionOptions.readonly,
             domReadOnly: actionOptions.readonly,
             scrollBeyondLastLine: false,
-            padding: { top: 4, bottom: 4 },
           }}
         />
       </StyledFullScreenCodeEditorContainer>
@@ -368,72 +390,83 @@ export const WorkflowEditActionCode = ({
 
   return (
     !loading && (
-      <>
+      <TabListRoot
+        componentInstanceId={WORKFLOW_LOGIC_FUNCTION_TAB_LIST_COMPONENT_ID}
+      >
         <LogicFunctionTestInputInitEffect logicFunctionId={logicFunctionId} />
         <StyledTabListContainer>
           <TabList
+            aria-label={t`Code step`}
             tabs={tabs}
             behaveAsLinks={false}
             componentInstanceId={WORKFLOW_LOGIC_FUNCTION_TAB_LIST_COMPONENT_ID}
           />
         </StyledTabListContainer>
-        <WorkflowStepBody>
-          {activeTabId === WorkflowLogicFunctionTabId.CODE && (
-            <>
-              <WorkflowEditActionCodeFields
-                functionInput={functionInput}
-                inputSchema={
-                  formValues.workflowActionTriggerSettings?.inputSchema
-                }
-                VariablePicker={WorkflowVariablePicker}
-                onInputChange={handleInputChange}
-                readonly={actionOptions.readonly}
-              />
-              <WorkflowCodeEditor
-                value={formValues.sourceHandlerCode}
-                onChange={handleCodeChange}
-                onMount={handleEditorDidMount}
-                options={{
-                  readOnly: actionOptions.readonly,
-                  domReadOnly: actionOptions.readonly,
-                  scrollBeyondLastLine: false,
-                  padding: { top: 4, bottom: 4 },
-                  lineNumbersMinChars: 2,
-                  fixedOverflowWidgets: true,
-                }}
-                readonly={actionOptions.readonly}
-                onEnterFullScreen={handleEnterFullScreen}
-              />
-            </>
-          )}
-          {activeTabId === WorkflowLogicFunctionTabId.TEST && (
-            <>
-              <WorkflowEditActionCodeFields
-                functionInput={logicFunctionTestData.input}
-                inputSchema={
-                  formValues.workflowActionTriggerSettings?.inputSchema
-                }
-                onInputChange={handleTestInputChange}
-                readonly={actionOptions.readonly}
-              />
-              <StyledCodeEditorContainer>
-                <InputLabel>{t`Result`}</InputLabel>
-                <LogicFunctionExecutionResult
-                  logicFunctionTestData={logicFunctionTestData}
-                  isTesting={isExecuting}
+        <WorkflowStepTabPanel value={activeTabId ?? ''}>
+          <WorkflowStepBody>
+            {activeTabId === WorkflowLogicFunctionTabId.CODE && (
+              <>
+                <WorkflowEditActionCodeFields
+                  functionInput={functionInput}
+                  inputSchema={
+                    formValues.workflowActionTriggerSettings?.inputSchema
+                  }
+                  VariablePicker={WorkflowVariablePicker}
+                  onInputChange={handleInputChange}
+                  readonly={actionOptions.readonly}
                 />
-              </StyledCodeEditorContainer>
-              {logicFunctionTestData.output.logs.length > 0 && (
+                <WorkflowCodeEditor
+                  value={formValues.sourceHandlerCode}
+                  onChange={handleCodeChange}
+                  onMount={handleEditorDidMount}
+                  options={{
+                    readOnly: actionOptions.readonly,
+                    domReadOnly: actionOptions.readonly,
+                    scrollBeyondLastLine: false,
+                    lineNumbersMinChars: 2,
+                    fixedOverflowWidgets: true,
+                  }}
+                  readonly={actionOptions.readonly}
+                  onEnterFullScreen={handleEnterFullScreen}
+                />
+                <WorkflowExpectedOutputBodyInput
+                  defaultValue={action.settings.expectedOutputSchema}
+                  onChange={handleExpectedOutputBodyChange}
+                  readonly={actionOptions.readonly}
+                />
+              </>
+            )}
+            {activeTabId === WorkflowLogicFunctionTabId.TEST && (
+              <>
+                <WorkflowEditActionCodeFields
+                  functionInput={logicFunctionTestData.input}
+                  inputSchema={
+                    formValues.workflowActionTriggerSettings?.inputSchema
+                  }
+                  onInputChange={handleTestInputChange}
+                  readonly={actionOptions.readonly}
+                />
                 <StyledCodeEditorContainer>
-                  <LogicFunctionLogs
-                    componentInstanceId={`workflow-edit-action-logs-${action.id}`}
-                    value={isExecuting ? '' : logicFunctionTestData.output.logs}
+                  <InputLabel>{t`Result`}</InputLabel>
+                  <LogicFunctionExecutionResult
+                    logicFunctionTestData={logicFunctionTestData}
+                    isTesting={isExecuting}
                   />
                 </StyledCodeEditorContainer>
-              )}
-            </>
-          )}
-        </WorkflowStepBody>
+                {logicFunctionTestData.output.logs.length > 0 && (
+                  <StyledCodeEditorContainer>
+                    <LogicFunctionLogs
+                      componentInstanceId={`workflow-edit-action-logs-${action.id}`}
+                      value={
+                        isExecuting ? '' : logicFunctionTestData.output.logs
+                      }
+                    />
+                  </StyledCodeEditorContainer>
+                )}
+              </>
+            )}
+          </WorkflowStepBody>
+        </WorkflowStepTabPanel>
         {!actionOptions.readonly && (
           <WorkflowStepFooter
             stepId={action.id}
@@ -451,7 +484,7 @@ export const WorkflowEditActionCode = ({
           />
         )}
         {fullScreenOverlay}
-      </>
+      </TabListRoot>
     )
   );
 };

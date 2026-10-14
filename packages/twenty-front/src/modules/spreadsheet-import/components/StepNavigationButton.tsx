@@ -1,18 +1,17 @@
+import { Dialog } from 'twenty-ui/primitives/surfaces';
 import { styled } from '@linaria/react';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { MainButton } from 'twenty-ui/components/input';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 import { t } from '@lingui/core/macro';
-import { CircularProgressBar } from 'twenty-ui/feedback';
-import { MainButton } from 'twenty-ui/input';
-import { ModalFooter } from 'twenty-ui/layout';
-import { isUndefinedOrNull } from '~/utils/isUndefinedOrNull';
+import { Loader } from 'twenty-ui/primitives/feedback';
+import { isDefined } from 'twenty-shared/utils';
 
-const StyledFooterContainer = styled.div`
-  > div {
-    border-top: 1px solid ${themeCssVariables.border.color.medium};
-    box-shadow: ${themeCssVariables.boxShadow.strong};
-    justify-content: space-between;
-  }
+const StyledFooter = styled(Dialog.Footer)`
+  border-top: 1px solid ${themeCssVariables.border.color.medium};
+  box-shadow: ${themeCssVariables.boxShadow.strong};
+  justify-content: space-between;
+  padding: ${themeCssVariables.spacing[5]};
 `;
 
 type StepNavigationButtonProps = {
@@ -33,26 +32,25 @@ export const StepNavigationButton = ({
   isContinueDisabled = false,
 }: StepNavigationButtonProps) => {
   return (
-    <StyledFooterContainer>
-      <ModalFooter autoHeight>
-        {!isUndefinedOrNull(onBack) && (
-          <MainButton
-            Icon={isLoading ? CircularProgressBar : undefined}
-            title={backTitle}
-            onClick={!isLoading ? onBack : undefined}
-            variant="secondary"
-          />
-        )}
-        {!isUndefinedOrNull(onContinue) && (
-          <MainButton
-            Icon={isLoading ? CircularProgressBar : undefined}
-            title={continueTitle}
-            onClick={!isLoading ? onContinue : undefined}
-            variant="primary"
-            disabled={isContinueDisabled}
-          />
-        )}
-      </ModalFooter>
-    </StyledFooterContainer>
+    <StyledFooter>
+      {isDefined(onBack) && (
+        <MainButton
+          startIcon={isLoading ? <Loader /> : undefined}
+          onClick={!isLoading ? onBack : undefined}
+          variant="outline"
+        >
+          {backTitle}
+        </MainButton>
+      )}
+      {isDefined(onContinue) && (
+        <MainButton
+          startIcon={isLoading ? <Loader /> : undefined}
+          onClick={!isLoading ? onContinue : undefined}
+          disabled={isContinueDisabled}
+        >
+          {continueTitle}
+        </MainButton>
+      )}
+    </StyledFooter>
   );
 };

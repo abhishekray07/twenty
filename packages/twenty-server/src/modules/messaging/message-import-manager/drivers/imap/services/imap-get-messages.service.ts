@@ -7,11 +7,12 @@ import { type ConnectedAccountEntity } from 'src/engine/metadata-modules/connect
 import { computeMessageDirection } from 'src/modules/messaging/message-import-manager/drivers/gmail/utils/compute-message-direction.util';
 import { ImapClientProvider } from 'src/modules/messaging/message-import-manager/drivers/imap/providers/imap-client.provider';
 import { ImapMessageParserService } from 'src/modules/messaging/message-import-manager/drivers/imap/services/imap-message-parser.service';
-import { ImapMessageTextExtractorService } from 'src/modules/messaging/message-import-manager/drivers/imap/services/imap-message-text-extractor.service';
 import { ImapMessagesImportErrorHandler } from 'src/modules/messaging/message-import-manager/drivers/imap/services/imap-messages-import-error-handler.service';
 import { parseMessageId } from 'src/modules/messaging/message-import-manager/drivers/imap/utils/parse-message-id.util';
-import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message';
+import { resolveReceivedAt } from 'src/modules/messaging/message-import-manager/drivers/imap/utils/resolve-received-at.util';
+import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message.type';
 import { extractAddressesFromParsedEmail } from 'src/modules/messaging/message-import-manager/utils/extract-addresses-from-parsed-email.util';
+import { extractMessageTextWithoutQuotedHistory } from 'src/modules/messaging/message-import-manager/utils/extract-message-text-without-quoted-history.util';
 import { extractParticipantsFromParsedEmail } from 'src/modules/messaging/message-import-manager/utils/extract-participants-from-parsed-email.util';
 import { extractThreadIdFromParsedEmail } from 'src/modules/messaging/message-import-manager/utils/extract-thread-id-from-parsed-email.util';
 import { sanitizeString } from 'src/modules/messaging/message-import-manager/utils/sanitize-string.util';
@@ -28,7 +29,6 @@ export class ImapGetMessagesService {
   constructor(
     private readonly imapClientProvider: ImapClientProvider,
     private readonly messageParser: ImapMessageParserService,
-    private readonly textExtractor: ImapMessageTextExtractorService,
     private readonly errorHandler: ImapMessagesImportErrorHandler,
   ) {}
 
@@ -146,6 +146,8 @@ export class ImapGetMessagesService {
           folderPath,
           folderExternalId,
           connectedAccount,
+          result.flags,
+          result.internalDate,
         ),
       );
     }
@@ -163,13 +165,16 @@ export class ImapGetMessagesService {
     folderPath: string,
     folderExternalId: string,
     connectedAccount: Pick<ConnectedAccountEntity, 'handle' | 'handleAliases'>,
+    flags?: Set<string>,
+    internalDate?: Date | string,
   ): MessageWithParticipants {
     const fromAddresses = extractAddressesFromParsedEmail(parsed.from);
     const senderAddress = fromAddresses[0]?.address ?? '';
 
-    const text = sanitizeString(
-      this.textExtractor.extractTextWithoutReplyQuotations(parsed),
-    );
+    const text = extractMessageTextWithoutQuotedHistory({
+      text: parsed.text,
+      html: parsed.html,
+    });
 
     return {
       externalId: `${folderPath}:${uid}`,
@@ -177,13 +182,18 @@ export class ImapGetMessagesService {
       headerMessageId: parsed.messageId || String(uid),
       subject: sanitizeString(parsed.subject || ''),
       text,
-      receivedAt: parsed.date ? new Date(parsed.date) : null,
+      receivedAt: resolveReceivedAt({ headerDate: parsed.date, internalDate }),
       direction: computeMessageDirection(senderAddress, connectedAccount),
       attachments: (parsed.attachments || []).map((attachment) => ({
         filename: attachment.filename || 'unnamed-attachment',
       })),
       participants: extractParticipantsFromParsedEmail(parsed),
       messageFolderExternalIds: [folderExternalId],
+      isDraft: flags?.has('\\Draft') ?? false,
+      messageHeaders: parsed.headers.map(({ key, value }) => ({
+        name: key,
+        value,
+      })),
     };
   }
 }

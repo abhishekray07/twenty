@@ -1,11 +1,16 @@
+import { aiModelTiersState } from '@/client-config/states/aiModelTiersState';
+import { aiEvaluationModelsState } from '@/client-config/states/aiEvaluationModelsState';
 import { aiModelsState } from '@/client-config/states/aiModelsState';
 import { apiConfigState } from '@/client-config/states/apiConfigState';
+import { onboardingConfigState } from '@/client-config/states/onboardingConfigState';
 import { appVersionState } from '@/client-config/states/appVersionState';
 import { authProvidersState } from '@/client-config/states/authProvidersState';
 import { billingState } from '@/client-config/states/billingState';
 import { calendarBookingPageIdState } from '@/client-config/states/calendarBookingPageIdState';
 import { canManageFeatureFlagsState } from '@/client-config/states/canManageFeatureFlagsState';
 import { captchaState } from '@/client-config/states/captchaState';
+import { isBookCallOnboardingStepEnabledState } from '@/client-config/states/isBookCallOnboardingStepEnabledState';
+import { isCompanyEnrichmentEnabledState } from '@/client-config/states/isCompanyEnrichmentEnabledState';
 import { isAnalyticsEnabledState } from '@/client-config/states/isAnalyticsEnabledState';
 import { isAttachmentPreviewEnabledState } from '@/client-config/states/isAttachmentPreviewEnabledState';
 import { isConfigVariablesInDbEnabledState } from '@/client-config/states/isConfigVariablesInDbEnabledState';
@@ -13,8 +18,8 @@ import { isDeveloperDefaultSignInPrefilledState } from '@/client-config/states/i
 import { isClickHouseConfiguredState } from '@/client-config/states/isClickHouseConfiguredState';
 import { isCloudflareIntegrationEnabledState } from '@/client-config/states/isCloudflareIntegrationEnabledState';
 import { isDDLLockedState } from '@/client-config/states/isDDLLockedState';
-import { isEmailGroupEnabledState } from '@/client-config/states/isEmailGroupEnabledState';
-import { isEmailingDomainsEnabledState } from '@/client-config/states/isEmailingDomainsEnabledState';
+import { enterpriseInstanceTypeState } from '@/client-config/states/enterpriseInstanceTypeState';
+import { isEmailingDomainInDemoModeState } from '@/client-config/states/isEmailingDomainInDemoModeState';
 import { isEmailVerificationRequiredState } from '@/client-config/states/isEmailVerificationRequiredState';
 import { isGoogleCalendarEnabledState } from '@/client-config/states/isGoogleCalendarEnabledState';
 import { isGoogleMessagingEnabledState } from '@/client-config/states/isGoogleMessagingEnabledState';
@@ -23,6 +28,7 @@ import { maintenanceModeState } from '@/client-config/states/maintenanceModeStat
 import { isMicrosoftCalendarEnabledState } from '@/client-config/states/isMicrosoftCalendarEnabledState';
 import { isMicrosoftMessagingEnabledState } from '@/client-config/states/isMicrosoftMessagingEnabledState';
 import { isMultiWorkspaceEnabledState } from '@/client-config/states/isMultiWorkspaceEnabledState';
+import { isOnboardingAiChatEnabledState } from '@/client-config/states/isOnboardingAiChatEnabledState';
 import { labPublicFeatureFlagsState } from '@/client-config/states/labPublicFeatureFlagsState';
 import { sentryConfigState } from '@/client-config/states/sentryConfigState';
 import { supportChatState } from '@/client-config/states/supportChatState';
@@ -31,15 +37,17 @@ import { domainConfigurationState } from '@/domain-manager/states/domainConfigur
 import { useCallback } from 'react';
 import { clientConfigApiStatusState } from '@/client-config/states/clientConfigApiStatusState';
 import { getClientConfig } from '@/client-config/utils/getClientConfig';
+import { getInitialClientConfig } from '@/client-config/utils/getInitialClientConfig';
 import { allowRequestsToTwentyIconsState } from '@/client-config/states/allowRequestsToTwentyIcons';
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
+import { ENTERPRISE_INSTANCE_TYPE } from 'twenty-shared/constants';
 
 type UseClientConfigResult = {
   data: { clientConfig: ClientConfig } | undefined;
   loading: boolean;
   error: Error | undefined;
-  fetchClientConfig: () => Promise<void>;
+  initializeClientConfig: () => Promise<void>;
   refetch: () => Promise<void>;
 };
 
@@ -48,6 +56,8 @@ export const useClientConfig = (): UseClientConfigResult => {
   const setDomainConfiguration = useSetAtomState(domainConfigurationState);
   const setAuthProviders = useSetAtomState(authProvidersState);
   const setAiModels = useSetAtomState(aiModelsState);
+  const setAiEvaluationModels = useSetAtomState(aiEvaluationModelsState);
+  const setAiModelTiers = useSetAtomState(aiModelTiersState);
 
   const setIsDeveloperDefaultSignInPrefilled = useSetAtomState(
     isDeveloperDefaultSignInPrefilledState,
@@ -70,6 +80,7 @@ export const useClientConfig = (): UseClientConfigResult => {
   const setCaptcha = useSetAtomState(captchaState);
 
   const setApiConfig = useSetAtomState(apiConfigState);
+  const setOnboardingConfig = useSetAtomState(onboardingConfigState);
 
   const setCanManageFeatureFlags = useSetAtomState(canManageFeatureFlagsState);
 
@@ -101,10 +112,16 @@ export const useClientConfig = (): UseClientConfigResult => {
 
   const setCalendarBookingPageId = useSetAtomState(calendarBookingPageIdState);
 
-  const setIsEmailGroupEnabled = useSetAtomState(isEmailGroupEnabledState);
+  const setIsBookCallOnboardingStepEnabled = useSetAtomState(
+    isBookCallOnboardingStepEnabledState,
+  );
 
-  const setIsEmailingDomainsEnabled = useSetAtomState(
-    isEmailingDomainsEnabledState,
+  const setIsCompanyEnrichmentEnabled = useSetAtomState(
+    isCompanyEnrichmentEnabledState,
+  );
+
+  const setIsEmailingDomainInDemoMode = useSetAtomState(
+    isEmailingDomainInDemoModeState,
   );
 
   const setIsImapSmtpCaldavEnabled = useSetAtomState(
@@ -125,139 +142,194 @@ export const useClientConfig = (): UseClientConfigResult => {
 
   const setIsDDLLocked = useSetAtomState(isDDLLockedState);
 
+  const setIsOnboardingAiChatEnabled = useSetAtomState(
+    isOnboardingAiChatEnabledState,
+  );
+
   const setMaintenanceMode = useSetAtomState(maintenanceModeState);
+
+  const setEnterpriseInstanceType = useSetAtomState(
+    enterpriseInstanceTypeState,
+  );
 
   const setAppVersion = useSetAtomState(appVersionState);
 
-  const fetchClientConfig = useCallback(async () => {
-    setClientConfigApiStatus((prev) => ({
-      ...prev,
-      isLoading: true,
-    }));
-
-    try {
-      const clientConfig = await getClientConfig();
+  const loadClientConfig = useCallback(
+    async (getConfiguration: () => Promise<ClientConfig>) => {
       setClientConfigApiStatus((prev) => ({
         ...prev,
-        isLoading: false,
-        isLoadedOnce: true,
-        isErrored: false,
-        error: undefined,
-        data: { clientConfig },
-      }));
-      setClientConfigApiStatus((currentStatus) => ({
-        ...currentStatus,
-        isErrored: false,
-        error: undefined,
-      }));
-      setAppVersion(clientConfig.appVersion);
-      setAuthProviders({
-        google: clientConfig.authProviders.google,
-        microsoft: clientConfig.authProviders.microsoft,
-        password: clientConfig.authProviders.password,
-        magicLink: false,
-        sso: clientConfig.authProviders.sso,
-      });
-      setAiModels(clientConfig.aiModels ?? []);
-      setIsAnalyticsEnabled(clientConfig.analyticsEnabled);
-      setIsDeveloperDefaultSignInPrefilled(clientConfig.signInPrefilled);
-      setIsMultiWorkspaceEnabled(clientConfig.isMultiWorkspaceEnabled);
-      setIsEmailVerificationRequired(clientConfig.isEmailVerificationRequired);
-      setBilling(clientConfig.billing);
-      setSupportChat(clientConfig.support);
-
-      setSentryConfig({
-        dsn: clientConfig?.sentry?.dsn,
-        release: clientConfig?.sentry?.release,
-        environment: clientConfig?.sentry?.environment,
-      });
-
-      setCaptcha({
-        provider: clientConfig?.captcha?.provider,
-        siteKey: clientConfig?.captcha?.siteKey,
-      });
-
-      setApiConfig(clientConfig?.api);
-      setDomainConfiguration({
-        defaultSubdomain: clientConfig?.defaultSubdomain,
-        frontDomain: clientConfig?.frontDomain,
-      });
-      setCanManageFeatureFlags(clientConfig?.canManageFeatureFlags);
-      setLabPublicFeatureFlags(clientConfig?.publicFeatureFlags);
-      setIsMicrosoftMessagingEnabled(clientConfig?.isMicrosoftMessagingEnabled);
-      setIsMicrosoftCalendarEnabled(clientConfig?.isMicrosoftCalendarEnabled);
-      setIsGoogleMessagingEnabled(clientConfig?.isGoogleMessagingEnabled);
-      setIsGoogleCalendarEnabled(clientConfig?.isGoogleCalendarEnabled);
-      setIsAttachmentPreviewEnabled(clientConfig?.isAttachmentPreviewEnabled);
-      setIsConfigVariablesInDbEnabled(
-        clientConfig?.isConfigVariablesInDbEnabled,
-      );
-      setClientConfigApiStatus((currentStatus) => ({
-        ...currentStatus,
-        isSaved: true,
+        isLoading: true,
       }));
 
-      setCalendarBookingPageId(clientConfig?.calendarBookingPageId ?? null);
-      setIsImapSmtpCaldavEnabled(clientConfig?.isImapSmtpCaldavEnabled);
-      setIsEmailGroupEnabled(clientConfig?.isEmailGroupEnabled ?? false);
-      setIsEmailingDomainsEnabled(clientConfig?.isEmailingDomainsEnabled);
-      setAllowRequestsToTwentyIcons(clientConfig?.allowRequestsToTwentyIcons);
-      setIsCloudflareIntegrationEnabled(
-        clientConfig?.isCloudflareIntegrationEnabled,
-      );
-      setIsClickHouseConfigured(clientConfig?.isClickHouseConfigured ?? false);
-      setIsDDLLocked(clientConfig?.isWorkspaceSchemaDDLLocked ?? false);
-      setMaintenanceMode(clientConfig?.maintenance ?? null);
-    } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error('Failed to fetch client config');
-      setClientConfigApiStatus((prev) => ({
-        ...prev,
-        isLoading: false,
-        isLoadedOnce: true,
-        isErrored: true,
-        error,
-      }));
-    }
-  }, [
-    setAiModels,
-    setApiConfig,
-    setAppVersion,
-    setAuthProviders,
-    setBilling,
-    setCalendarBookingPageId,
-    setCanManageFeatureFlags,
-    setCaptcha,
-    setClientConfigApiStatus,
-    setDomainConfiguration,
-    setIsGoogleCalendarEnabled,
-    setIsGoogleMessagingEnabled,
-    setIsAnalyticsEnabled,
-    setIsAttachmentPreviewEnabled,
-    setIsConfigVariablesInDbEnabled,
-    setIsDeveloperDefaultSignInPrefilled,
-    setIsEmailVerificationRequired,
-    setIsImapSmtpCaldavEnabled,
-    setIsEmailGroupEnabled,
-    setIsMultiWorkspaceEnabled,
-    setIsEmailingDomainsEnabled,
-    setIsClickHouseConfigured,
-    setIsCloudflareIntegrationEnabled,
-    setIsDDLLocked,
-    setLabPublicFeatureFlags,
-    setMaintenanceMode,
-    setIsMicrosoftCalendarEnabled,
-    setIsMicrosoftMessagingEnabled,
-    setSentryConfig,
-    setSupportChat,
-    setAllowRequestsToTwentyIcons,
-  ]);
+      try {
+        const clientConfig = await getConfiguration();
+        setClientConfigApiStatus((prev) => ({
+          ...prev,
+          isLoading: false,
+          isLoadedOnce: true,
+          isErrored: false,
+          error: undefined,
+          data: { clientConfig },
+        }));
+        setClientConfigApiStatus((currentStatus) => ({
+          ...currentStatus,
+          isErrored: false,
+          error: undefined,
+        }));
+        setAppVersion(clientConfig.appVersion);
+        setAuthProviders({
+          google: clientConfig.authProviders.google,
+          microsoft: clientConfig.authProviders.microsoft,
+          password: clientConfig.authProviders.password,
+          magicLink: false,
+          sso: clientConfig.authProviders.sso,
+        });
+        setAiModels(clientConfig.aiModels ?? []);
+        setAiEvaluationModels(clientConfig.aiEvaluationModels ?? []);
+        setAiModelTiers(clientConfig.aiModelTiers ?? []);
+        setIsAnalyticsEnabled(clientConfig.analyticsEnabled);
+        setIsDeveloperDefaultSignInPrefilled(clientConfig.signInPrefilled);
+        setIsMultiWorkspaceEnabled(clientConfig.isMultiWorkspaceEnabled);
+        setIsEmailVerificationRequired(
+          clientConfig.isEmailVerificationRequired,
+        );
+        setBilling(clientConfig.billing);
+        setSupportChat(clientConfig.support);
+
+        setSentryConfig({
+          dsn: clientConfig?.sentry?.dsn,
+          release: clientConfig?.sentry?.release,
+          environment: clientConfig?.sentry?.environment,
+          tracesSampleRate: clientConfig?.sentry?.tracesSampleRate,
+        });
+
+        setCaptcha({
+          provider: clientConfig?.captcha?.provider,
+          siteKey: clientConfig?.captcha?.siteKey,
+        });
+
+        setApiConfig(clientConfig?.api);
+        setOnboardingConfig(clientConfig?.onboarding ?? null);
+        setDomainConfiguration({
+          defaultSubdomain: clientConfig?.defaultSubdomain,
+          frontDomain: clientConfig?.frontDomain,
+          publicFunctionDomain: clientConfig?.publicFunctionDomain,
+          serverUrl: clientConfig?.serverUrl,
+        });
+        setCanManageFeatureFlags(clientConfig?.canManageFeatureFlags);
+        setLabPublicFeatureFlags(clientConfig?.publicFeatureFlags);
+        setIsMicrosoftMessagingEnabled(
+          clientConfig?.isMicrosoftMessagingEnabled,
+        );
+        setIsMicrosoftCalendarEnabled(clientConfig?.isMicrosoftCalendarEnabled);
+        setIsGoogleMessagingEnabled(clientConfig?.isGoogleMessagingEnabled);
+        setIsGoogleCalendarEnabled(clientConfig?.isGoogleCalendarEnabled);
+        setIsAttachmentPreviewEnabled(clientConfig?.isAttachmentPreviewEnabled);
+        setIsConfigVariablesInDbEnabled(
+          clientConfig?.isConfigVariablesInDbEnabled,
+        );
+        setClientConfigApiStatus((currentStatus) => ({
+          ...currentStatus,
+          isSaved: true,
+        }));
+
+        setCalendarBookingPageId(clientConfig?.calendarBookingPageId ?? null);
+        setIsBookCallOnboardingStepEnabled(
+          clientConfig?.isBookCallOnboardingStepEnabled ?? false,
+        );
+        setIsCompanyEnrichmentEnabled(
+          clientConfig?.isCompanyEnrichmentEnabled ?? false,
+        );
+        setIsImapSmtpCaldavEnabled(clientConfig?.isImapSmtpCaldavEnabled);
+        setIsEmailingDomainInDemoMode(
+          clientConfig?.isEmailingDomainInDemoMode ?? false,
+        );
+        setAllowRequestsToTwentyIcons(clientConfig?.allowRequestsToTwentyIcons);
+        setIsCloudflareIntegrationEnabled(
+          clientConfig?.isCloudflareIntegrationEnabled,
+        );
+        setIsClickHouseConfigured(
+          clientConfig?.isClickHouseConfigured ?? false,
+        );
+        setIsDDLLocked(clientConfig?.isWorkspaceSchemaDDLLocked ?? false);
+        setIsOnboardingAiChatEnabled(
+          clientConfig?.isOnboardingAiChatEnabled ?? false,
+        );
+        setMaintenanceMode(clientConfig?.maintenance ?? null);
+        setEnterpriseInstanceType(
+          clientConfig?.enterpriseInstanceType ??
+            ENTERPRISE_INSTANCE_TYPE.PRODUCTION,
+        );
+      } catch (err) {
+        const error =
+          err instanceof Error
+            ? err
+            : new Error('Failed to fetch client config');
+        setClientConfigApiStatus((prev) => ({
+          ...prev,
+          isLoading: false,
+          isLoadedOnce: true,
+          isErrored: true,
+          error,
+        }));
+      }
+    },
+    [
+      setAiModels,
+      setAiEvaluationModels,
+      setAiModelTiers,
+      setApiConfig,
+      setOnboardingConfig,
+      setAppVersion,
+      setAuthProviders,
+      setBilling,
+      setCalendarBookingPageId,
+      setCanManageFeatureFlags,
+      setCaptcha,
+      setClientConfigApiStatus,
+      setDomainConfiguration,
+      setIsGoogleCalendarEnabled,
+      setIsGoogleMessagingEnabled,
+      setIsAnalyticsEnabled,
+      setIsAttachmentPreviewEnabled,
+      setIsBookCallOnboardingStepEnabled,
+      setIsCompanyEnrichmentEnabled,
+      setIsConfigVariablesInDbEnabled,
+      setIsDeveloperDefaultSignInPrefilled,
+      setIsEmailVerificationRequired,
+      setIsImapSmtpCaldavEnabled,
+      setIsMultiWorkspaceEnabled,
+      setIsEmailingDomainInDemoMode,
+      setIsClickHouseConfigured,
+      setIsCloudflareIntegrationEnabled,
+      setIsDDLLocked,
+      setIsOnboardingAiChatEnabled,
+      setLabPublicFeatureFlags,
+      setMaintenanceMode,
+      setEnterpriseInstanceType,
+      setIsMicrosoftCalendarEnabled,
+      setIsMicrosoftMessagingEnabled,
+      setSentryConfig,
+      setSupportChat,
+      setAllowRequestsToTwentyIcons,
+    ],
+  );
+
+  const refetch = useCallback(
+    () => loadClientConfig(getClientConfig),
+    [loadClientConfig],
+  );
+
+  const initializeClientConfig = useCallback(
+    () => loadClientConfig(getInitialClientConfig),
+    [loadClientConfig],
+  );
 
   return {
     data: clientConfigApiStatus.data,
     loading: clientConfigApiStatus.isLoading || false,
     error: clientConfigApiStatus.error,
-    fetchClientConfig,
-    refetch: fetchClientConfig,
+    initializeClientConfig,
+    refetch,
   };
 };

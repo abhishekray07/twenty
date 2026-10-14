@@ -1,6 +1,10 @@
 import { isDefined } from 'twenty-shared/utils';
 import { DataSource, QueryRunner } from 'typeorm';
 
+import { legacyDecryptVersionedWithFallback } from 'src/database/commands/upgrade-version-command/2-5/utils/legacy-decrypt-versioned-with-fallback.util';
+import { type EncryptedString } from 'src/engine/core-modules/secret-encryption/branded-strings/encrypted-string.type';
+import { isEncryptedString } from 'src/engine/core-modules/secret-encryption/branded-strings/is-encrypted-string.util';
+import { type PlaintextString } from 'src/engine/core-modules/secret-encryption/branded-strings/plaintext-string.type';
 import { SECRET_ENCRYPTION_ENVELOPE_V2_PREFIX } from 'src/engine/core-modules/secret-encryption/constants/secret-encryption.constant';
 import { SecretEncryptionService } from 'src/engine/core-modules/secret-encryption/secret-encryption.service';
 import { RegisteredInstanceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
@@ -47,16 +51,23 @@ export class EncryptSigningKeyPrivateKeysSlowInstanceCommand implements SlowInst
       }
 
       for (const row of rows) {
-        const plaintext = this.secretEncryptionService.decryptVersioned(
-          row.privateKey,
-        );
+        if (isEncryptedString(row.privateKey)) {
+          continue;
+        }
+
+        const plaintext = legacyDecryptVersionedWithFallback({
+          secretEncryptionService: this.secretEncryptionService,
+          value: row.privateKey as EncryptedString,
+        });
 
         if (!isDefined(plaintext)) {
           continue;
         }
 
         const encryptedPrivateKey =
-          this.secretEncryptionService.encryptVersioned(plaintext);
+          this.secretEncryptionService.encryptVersioned(
+            plaintext as PlaintextString,
+          );
 
         await dataSource.query(
           `UPDATE "core"."signingKey"

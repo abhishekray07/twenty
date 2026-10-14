@@ -3,10 +3,17 @@ import inquirer from 'inquirer';
 import { writeFile } from 'node:fs/promises';
 import { join, relative } from 'path';
 import { SyncableEntity } from 'twenty-shared/application';
-import { FieldMetadataType, ViewType } from 'twenty-shared/types';
+import {
+  FieldMetadataType,
+  PageLayoutType,
+  RelationOnDeleteAction,
+  RelationType,
+  ViewType,
+} from 'twenty-shared/types';
 import { assertUnreachable } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
 
+import { getApplicationUniversalIdentifierOrThrow } from '@/cli/utilities/application/get-application-universal-identifier-or-throw';
 import { CURRENT_EXECUTION_DIRECTORY } from '@/cli/utilities/config/current-execution-directory';
 import { convertToLabel } from '@/cli/utilities/entity/entity-label';
 import { appendServerVariablesToAppConfig } from '@/cli/utilities/file/append-server-variables.util';
@@ -18,12 +25,16 @@ import { getObjectBaseFile } from '@/cli/utilities/entity/entity-object-template
 import { getCommandMenuItemBaseFile } from '@/cli/utilities/entity/entity-command-menu-item-template';
 import { getPageLayoutBaseFile } from '@/cli/utilities/entity/entity-page-layout-template';
 import { getPageLayoutTabBaseFile } from '@/cli/utilities/entity/entity-page-layout-tab-template';
+import { getPageLayoutWidgetBaseFile } from '@/cli/utilities/entity/entity-page-layout-widget-template';
 import { getRecordPageLayoutBaseFile } from '@/cli/utilities/entity/entity-record-page-layout-template';
 import { getRoleBaseFile } from '@/cli/utilities/entity/entity-role-template';
 import { getAgentBaseFile } from '@/cli/utilities/entity/entity-agent-template';
 import { getConnectionProviderBaseFile } from '@/cli/utilities/entity/entity-connection-provider-template';
 import { getSkillBaseFile } from '@/cli/utilities/entity/entity-skill-template';
 import { getViewBaseFile } from '@/cli/utilities/entity/entity-view-template';
+import { getViewFieldBaseFile } from '@/cli/utilities/entity/entity-view-field-template';
+import { getSettingsMenuItemBaseFile } from '@/cli/utilities/entity/entity-settings-menu-item-template';
+import { getTimelineActivityTypeBaseFile } from '@/cli/utilities/entity/entity-timeline-activity-type-template';
 import { ensureDir, pathExists } from '@/cli/utilities/file/fs-utils';
 import { kebabCase } from '@/cli/utilities/string/kebab-case';
 
@@ -38,6 +49,12 @@ export class EntityAddCommand {
 
   async execute(entityType?: SyncableEntity, path?: string): Promise<void> {
     try {
+      // Generated files embed identifiers derived from the application universal identifier
+      const applicationUniversalIdentifier =
+        await getApplicationUniversalIdentifierOrThrow(
+          CURRENT_EXECUTION_DIRECTORY,
+        );
+
       const entity = entityType ?? (await this.getEntity());
 
       const entityName = this.getFolderName(entity);
@@ -48,7 +65,10 @@ export class EntityAddCommand {
 
       await ensureDir(appPath);
 
-      const { name, file } = await this.getEntityData(entity);
+      const { name, file } = await this.getEntityData(
+        entity,
+        applicationUniversalIdentifier,
+      );
 
       const filePath = join(appPath, this.getFileName(name, entity));
 
@@ -67,7 +87,11 @@ export class EntityAddCommand {
       );
 
       if (entity === SyncableEntity.Object) {
-        await this.promptAndCreateObjectCompanions(name, path);
+        await this.promptAndCreateObjectCompanions({
+          objectName: name,
+          applicationUniversalIdentifier,
+          customPath: path,
+        });
       }
 
       if (entity === SyncableEntity.ConnectionProvider) {
@@ -82,7 +106,10 @@ export class EntityAddCommand {
     }
   }
 
-  private async getEntityData(entity: SyncableEntity) {
+  private async getEntityData(
+    entity: SyncableEntity,
+    applicationUniversalIdentifier: string,
+  ) {
     switch (entity) {
       case SyncableEntity.Object: {
         const entityData = await this.getObjectData();
@@ -185,7 +212,17 @@ export class EntityAddCommand {
 
         const file = getViewBaseFile({
           name,
+          objectUniversalIdentifier: entityData.objectUniversalIdentifier,
+          applicationUniversalIdentifier,
         });
+
+        return { name, file };
+      }
+
+      case SyncableEntity.ViewField: {
+        const name = await this.getEntityName(entity);
+
+        const file = getViewFieldBaseFile({});
 
         return { name, file };
       }
@@ -203,8 +240,20 @@ export class EntityAddCommand {
       case SyncableEntity.PageLayout: {
         const name = await this.getEntityName(entity);
 
+        const { type } = await inquirer.prompt<{
+          type: PageLayoutType;
+        }>([
+          {
+            type: 'select',
+            name: 'type',
+            message: 'Select the page layout type:',
+            choices: Object.values(PageLayoutType),
+          },
+        ]);
+
         const file = getPageLayoutBaseFile({
           name,
+          type,
         });
         return { name, file };
       }
@@ -213,6 +262,15 @@ export class EntityAddCommand {
         const name = await this.getEntityName(entity);
 
         const file = getPageLayoutTabBaseFile({
+          name,
+        });
+        return { name, file };
+      }
+
+      case SyncableEntity.PageLayoutWidget: {
+        const name = await this.getEntityName(entity);
+
+        const file = getPageLayoutWidgetBaseFile({
           name,
         });
         return { name, file };
@@ -227,15 +285,36 @@ export class EntityAddCommand {
         return { name, file };
       }
 
+      case SyncableEntity.TimelineActivityType: {
+        const name = await this.getEntityName(entity);
+
+        const file = getTimelineActivityTypeBaseFile({ name });
+
+        return { name, file };
+      }
+
+      case SyncableEntity.SettingsMenuItem: {
+        const name = await this.getEntityName(entity);
+
+        const file = getSettingsMenuItemBaseFile({ name });
+
+        return { name, file };
+      }
+
       default:
         assertUnreachable(entity);
     }
   }
 
-  private async promptAndCreateObjectCompanions(
-    objectName: string,
-    customPath?: string,
-  ): Promise<void> {
+  private async promptAndCreateObjectCompanions({
+    objectName,
+    applicationUniversalIdentifier,
+    customPath,
+  }: {
+    objectName: string;
+    applicationUniversalIdentifier: string;
+    customPath?: string;
+  }): Promise<void> {
     const { createCompanions } = await inquirer.prompt<{
       createCompanions: boolean;
     }>([
@@ -259,6 +338,7 @@ export class EntityAddCommand {
       name: `all-${kebabCase(objectName)}`,
       universalIdentifier: viewUniversalIdentifier,
       objectUniversalIdentifier: this.lastObjectUniversalIdentifier,
+      applicationUniversalIdentifier,
       fields: this.lastNameFieldUniversalIdentifier
         ? [
             {
@@ -308,6 +388,7 @@ export class EntityAddCommand {
       name: `${kebabCase(objectName)}-record-page-fields`,
       universalIdentifier: fieldsWidgetViewUniversalIdentifier,
       objectUniversalIdentifier: this.lastObjectUniversalIdentifier,
+      applicationUniversalIdentifier,
       type: ViewType.FIELDS_WIDGET,
       fields: recordPageFieldsViewFields,
     });
@@ -409,12 +490,7 @@ export class EntityAddCommand {
     );
   }
 
-  // Connection providers reference two serverVariables (`<NAME>_CLIENT_ID`
-  // and `<NAME>_CLIENT_SECRET`) that the dev needs to declare on
-  // `defineApplication.serverVariables`. Auto-append them so the dev
-  // doesn't have to remember the wiring after `twenty dev:add connection-provider`.
-  // The util is best-effort: it handles the common file shapes and falls
-  // back to a printed snippet for anything it can't safely modify.
+  // Best-effort: falls back to printing a snippet for file shapes it cannot safely modify
   private async registerConnectionProviderServerVariables(
     name: string,
   ): Promise<void> {
@@ -550,12 +626,20 @@ export class EntityAddCommand {
   }
 
   private async getFieldData() {
+    const isRelationFieldType = (type: FieldMetadataType | undefined) =>
+      type === FieldMetadataType.RELATION ||
+      type === FieldMetadataType.MORPH_RELATION;
+
     return inquirer.prompt<{
       name: string;
       label: string;
       type: FieldMetadataType;
       objectUniversalIdentifier: string;
       description: string;
+      relationTargetObjectMetadataUniversalIdentifier?: string;
+      relationTargetFieldMetadataUniversalIdentifier?: string;
+      relationType?: RelationType;
+      onDelete?: RelationOnDeleteAction;
     }>([
       {
         type: 'input',
@@ -608,6 +692,50 @@ export class EntityAddCommand {
         name: 'description',
         message: 'Enter a description for your field (optional):',
         default: '',
+      },
+      {
+        type: 'input',
+        name: 'relationTargetObjectMetadataUniversalIdentifier',
+        message:
+          'Enter the universalIdentifier of the target object of the relation:',
+        default: 'fill-later',
+        when: (answers) => isRelationFieldType(answers.type),
+        validate: (input: string) => {
+          if (!input || input.trim().length === 0) {
+            return 'Please enter a non empty string';
+          }
+          return true;
+        },
+      },
+      {
+        type: 'input',
+        name: 'relationTargetFieldMetadataUniversalIdentifier',
+        message:
+          'Enter the universalIdentifier of the target field on the related object:',
+        default: 'fill-later',
+        when: (answers) => isRelationFieldType(answers.type),
+        validate: (input: string) => {
+          if (!input || input.trim().length === 0) {
+            return 'Please enter a non empty string';
+          }
+          return true;
+        },
+      },
+      {
+        type: 'select',
+        name: 'relationType',
+        message: 'Select the relation type:',
+        choices: Object.values(RelationType),
+        default: RelationType.ONE_TO_MANY,
+        when: (answers) => isRelationFieldType(answers.type),
+      },
+      {
+        type: 'select',
+        name: 'onDelete',
+        message: 'Select the onDelete behavior:',
+        choices: Object.values(RelationOnDeleteAction),
+        default: RelationOnDeleteAction.CASCADE,
+        when: (answers) => isRelationFieldType(answers.type),
       },
     ]);
   }

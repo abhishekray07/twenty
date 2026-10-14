@@ -2,6 +2,7 @@ import { Field, ObjectType } from '@nestjs/graphql';
 
 import {
   IsBoolean,
+  IsDateString,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -14,6 +15,7 @@ import { ApplicationRegistrationSummaryDTO } from 'src/engine/core-modules/appli
 import { ApplicationVariableEntityDTO } from 'src/engine/core-modules/application/application-variable/dtos/application-variable.dto';
 import { AgentDTO } from 'src/engine/metadata-modules/ai/ai-agent/dtos/agent.dto';
 import { CommandMenuItemDTO } from 'src/engine/metadata-modules/command-menu-item/dtos/command-menu-item.dto';
+import { SettingsMenuItemDTO } from 'src/engine/metadata-modules/settings-menu-item/dtos/settings-menu-item.dto';
 import { FrontComponentDTO } from 'src/engine/metadata-modules/front-component/dtos/front-component.dto';
 import { LogicFunctionDTO } from 'src/engine/metadata-modules/logic-function/dtos/logic-function.dto';
 import { ObjectMetadataDTO } from 'src/engine/metadata-modules/object-metadata/dtos/object-metadata.dto';
@@ -35,10 +37,16 @@ export class ApplicationDTO {
   @Field({ nullable: true })
   description?: string;
 
+  // Package-relative path of the logo bundled in the application, not
+  // displayable on its own: exposed to clients through the logoUrl field
   @IsOptional()
   @IsString()
-  @Field({ nullable: true })
   logo?: string;
+
+  @IsOptional()
+  @IsUUID()
+  @Field(() => UUIDScalarType, { nullable: true })
+  logoFileId?: string;
 
   @IsOptional()
   @IsString()
@@ -81,6 +89,14 @@ export class ApplicationDTO {
   @IsBoolean()
   canBeUninstalled: boolean;
 
+  @Field(() => Boolean)
+  @IsBoolean()
+  autoUpgrade: boolean;
+
+  @IsDateString()
+  @Field()
+  createdAt: Date;
+
   @IsOptional()
   @IsString()
   @Field({ nullable: true })
@@ -90,6 +106,11 @@ export class ApplicationDTO {
   @IsUUID()
   @Field(() => UUIDScalarType, { nullable: true })
   settingsCustomTabFrontComponentId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  @Field(() => UUIDScalarType, { nullable: true })
+  healthCheckLogicFunctionId?: string;
 
   @IsOptional()
   @Field(() => RoleDTO, { nullable: true })
@@ -103,6 +124,9 @@ export class ApplicationDTO {
 
   @Field(() => [CommandMenuItemDTO])
   commandMenuItems?: CommandMenuItemDTO[];
+
+  @Field(() => [SettingsMenuItemDTO], { nullable: true })
+  settingsMenuItems?: SettingsMenuItemDTO[];
 
   @Field(() => [LogicFunctionDTO])
   logicFunctions?: LogicFunctionDTO[];

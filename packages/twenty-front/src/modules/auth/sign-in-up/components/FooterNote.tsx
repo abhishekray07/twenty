@@ -1,15 +1,18 @@
 import { styled } from '@linaria/react';
-import { Trans } from '@lingui/react/macro';
+import { Trans, useLingui } from '@lingui/react/macro';
 
 import { useWorkspaceBypass } from '@/auth/sign-in-up/hooks/useWorkspaceBypass';
+import { getTwentyWebsiteUrl } from '@/auth/utils/getTwentyWebsiteUrl';
 import { useIsCurrentLocationOnAWorkspace } from '@/domain-manager/hooks/useIsCurrentLocationOnAWorkspace';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { ONBOARDING_CONTENT_BLOCK_WIDTH } from '@/onboarding/constants/OnboardingContentBlockWidth';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 const StyledCopyContainer = styled.div`
   align-items: center;
   color: ${themeCssVariables.font.color.tertiary};
   font-size: ${themeCssVariables.font.size.sm};
-  max-width: 280px;
+  line-height: 1.4;
+  max-width: ${ONBOARDING_CONTENT_BLOCK_WIDTH}px;
   text-align: center;
 
   & > a {
@@ -54,8 +57,15 @@ const StyledSeparator = styled.span`
   color: ${themeCssVariables.font.color.tertiary};
 `;
 
-export const FooterNote = () => {
+type FooterNoteProps = {
+  secondaryAgreement?: 'privacyPolicy' | 'dataProcessingAgreement';
+};
+
+export const FooterNote = ({
+  secondaryAgreement = 'privacyPolicy',
+}: FooterNoteProps) => {
   const { isOnAWorkspace } = useIsCurrentLocationOnAWorkspace();
+  const { i18n } = useLingui();
 
   const { shouldOfferBypass, shouldUseBypass, enableBypass } =
     useWorkspaceBypass();
@@ -65,20 +75,30 @@ export const FooterNote = () => {
       <StyledCopyContainer>
         <Trans>By using Twenty, you agree to the</Trans>{' '}
         <a
-          href="https://twenty.com/legal/terms"
+          href={getTwentyWebsiteUrl(i18n.locale, 'terms')}
           target="_blank"
           rel="noopener noreferrer"
         >
           <Trans>Terms of Service</Trans>
         </a>{' '}
         <Trans>and</Trans>{' '}
-        <a
-          href="https://twenty.com/legal/privacy"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Trans>Privacy Policy</Trans>
-        </a>
+        {secondaryAgreement === 'dataProcessingAgreement' ? (
+          <a
+            href="https://twenty.com/legal/dpa"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Trans>Data Processing Agreement</Trans>
+          </a>
+        ) : (
+          <a
+            href={getTwentyWebsiteUrl(i18n.locale, 'privacy-policy')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Trans>Privacy Policy</Trans>
+          </a>
+        )}
         .
       </StyledCopyContainer>
     );
@@ -95,7 +115,7 @@ export const FooterNote = () => {
         </>
       )}
       <a
-        href="https://twenty.com/legal/privacy"
+        href={getTwentyWebsiteUrl(i18n.locale, 'privacy-policy')}
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -103,7 +123,7 @@ export const FooterNote = () => {
       </a>
       <StyledSeparator>•</StyledSeparator>
       <a
-        href="https://twenty.com/legal/terms"
+        href={getTwentyWebsiteUrl(i18n.locale, 'terms')}
         target="_blank"
         rel="noopener noreferrer"
       >

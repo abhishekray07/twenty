@@ -1,8 +1,9 @@
+import { RecordDragEndDropZone } from '@/object-record/record-drag/components/RecordDragEndDropZone';
 import { useCurrentRecordGroupId } from '@/object-record/record-group/hooks/useCurrentRecordGroupId';
 import { useShouldHideRecordGroup } from '@/object-record/record-group/hooks/useShouldHideRecordGroup';
 import { recordIndexRecordIdsByGroupComponentFamilyState } from '@/object-record/record-index/states/recordIndexRecordIdsByGroupComponentFamilyState';
 import { recordIndexAllRecordIdsComponentSelector } from '@/object-record/record-index/states/selectors/recordIndexAllRecordIdsComponentSelector';
-import { RecordTableBodyDroppablePlaceholder } from '@/object-record/record-table/record-table-body/components/RecordTableBodyDroppablePlaceholder';
+import { RECORD_TABLE_ROW_DND_TYPE } from '@/object-record/record-table/constants/RecordTableRowDndType';
 import { RecordTableAggregateFooter } from '@/object-record/record-table/record-table-footer/components/RecordTableAggregateFooter';
 import { RecordTableRow } from '@/object-record/record-table/record-table-row/components/RecordTableRow';
 import { RecordTableRecordGroupSectionAddNew } from '@/object-record/record-table/record-table-section/components/RecordTableRecordGroupSectionAddNew';
@@ -63,9 +64,14 @@ export const RecordTableRecordGroupRows = () => {
           />
         );
       })}
-      <RecordTableBodyDroppablePlaceholder />
-      <RecordTableRecordGroupSectionLoadMore />
-      <RecordTableRecordGroupSectionAddNew />
+      <RecordDragEndDropZone
+        droppableId={currentRecordGroupId}
+        dndType={RECORD_TABLE_ROW_DND_TYPE}
+        index={recordIndexRecordIdsByGroup.length}
+      >
+        <RecordTableRecordGroupSectionLoadMore />
+        <RecordTableRecordGroupSectionAddNew />
+      </RecordDragEndDropZone>
       <RecordTableAggregateFooter
         key={currentRecordGroupId}
         currentRecordGroupId={currentRecordGroupId}

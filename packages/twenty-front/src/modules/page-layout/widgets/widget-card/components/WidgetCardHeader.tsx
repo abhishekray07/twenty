@@ -1,62 +1,70 @@
-import { WidgetActionRenderer } from '@/page-layout/widgets/components/WidgetActionRenderer';
+import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { widgetCardHoveredComponentFamilyState } from '@/page-layout/widgets/states/widgetCardHoveredComponentFamilyState';
-import { type WidgetAction } from '@/page-layout/widgets/types/WidgetAction';
+import { widgetHeaderCountComponentFamilyState } from '@/page-layout/widgets/states/widgetHeaderCountComponentFamilyState';
+import { WidgetCardHeaderActionsRenderer } from '@/page-layout/widgets/widget-card/components/WidgetCardHeaderActionsRenderer';
 import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
-import { type ReactNode, useContext } from 'react';
-import { IconTrash, OverflowingTextWithTooltip } from 'twenty-ui/display';
-import { IconButton } from 'twenty-ui/input';
+import { type ReactNode } from 'react';
+import { IconButton } from 'twenty-ui/components/input';
+import { OverflowingTextWithTooltip } from 'twenty-ui/primitives/typography';
+import { IconTrash } from 'twenty-ui/icon';
 
 import { type WidgetCardVariant } from '@/page-layout/widgets/types/WidgetCardVariant';
 import { WidgetGrip } from '@/page-layout/widgets/widget-card/components/WidgetGrip';
 import { AnimatePresence, motion } from 'framer-motion';
-import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
-import { themeCssVariables, ThemeContext } from 'twenty-ui/theme-constants';
+import { isDefined } from 'twenty-shared/utils';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 export type WidgetCardHeaderProps = {
   variant: WidgetCardVariant;
   widgetId: string;
   isInEditMode: boolean;
   isEmpty?: boolean;
+  hasAccess?: boolean;
   title: string;
   onRemove?: (e?: React.MouseEvent) => void;
   forbiddenDisplay?: ReactNode;
-  actions?: WidgetAction[];
   className?: string;
   isResizing?: boolean;
-  isReorderEnabled?: boolean;
-  isDeletingWidgetEnabled?: boolean;
 };
 
-const StyledWidgetCardHeader = styled.div`
+const StyledWidgetCardHeader = styled.div<{ shouldInset: boolean }>`
   align-items: center;
+  box-sizing: border-box;
   display: flex;
   flex-shrink: 0;
-  height: ${themeCssVariables.spacing[6]};
+  height: ${({ shouldInset }) =>
+    shouldInset
+      ? `calc(${themeCssVariables.spacing[6]} + var(--widget-card-title-padding-top))`
+      : themeCssVariables.spacing[6]};
+  padding: ${({ shouldInset }) =>
+    shouldInset
+      ? `var(--widget-card-title-padding-top) var(--widget-card-padding-inline) 0`
+      : '0'};
 `;
 
-const StyledTitleContainer = styled.div<{ variant: WidgetCardVariant }>`
+const StyledTitleContainer = styled.div`
+  align-items: center;
   color: ${themeCssVariables.font.color.primary};
+  display: flex;
   flex: 1;
   font-size: ${themeCssVariables.font.size.md};
   font-weight: ${themeCssVariables.font.weight.medium};
+  gap: ${themeCssVariables.spacing[1]};
   overflow: hidden;
-  padding-inline: ${({ variant }) =>
-    variant === 'side-column' ? '0' : themeCssVariables.spacing[1]};
-
   user-select: none;
+`;
+
+const StyledCount = styled.span`
+  color: ${themeCssVariables.font.color.light};
+  flex-shrink: 0;
+  font-weight: ${themeCssVariables.font.weight.regular};
 `;
 
 const StyledRightContainer = styled.div`
   align-items: center;
   display: flex;
   gap: ${themeCssVariables.spacing[0.5]};
-`;
-
-const StyledActionsContainer = styled.div`
-  align-items: center;
-  display: flex;
-  gap: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledIconButtonContainerBase = styled.div`
@@ -67,52 +75,48 @@ const StyledIconButtonContainerBase = styled.div`
 const StyledIconButtonContainer = motion.create(StyledIconButtonContainerBase);
 
 export const WidgetCardHeader = ({
-  widgetId,
   variant,
+  widgetId,
   isEmpty = false,
   isInEditMode = false,
+  hasAccess = true,
   isResizing = false,
-  isReorderEnabled = true,
-  isDeletingWidgetEnabled = true,
   title,
   onRemove,
   forbiddenDisplay,
-  actions,
   className,
 }: WidgetCardHeaderProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
+  const { formatNumber } = useNumberFormat();
   const widgetCardHovered = useAtomComponentFamilyStateValue(
     widgetCardHoveredComponentFamilyState,
     widgetId,
   );
 
+  const widgetHeaderCount = useAtomComponentFamilyStateValue(
+    widgetHeaderCountComponentFamilyState,
+    widgetId,
+  );
+
+  const shouldInset = variant === 'flush';
   return (
-    <StyledWidgetCardHeader className={className}>
+    <StyledWidgetCardHeader className={className} shouldInset={shouldInset}>
       <AnimatePresence initial={false}>
-        {!isEmpty && isInEditMode && isReorderEnabled && (
-          <WidgetGrip
-            className="drag-handle"
-            onClick={(e) => e.stopPropagation()}
-          />
-        )}
+        {!isEmpty && isInEditMode && <WidgetGrip className="drag-handle" />}
       </AnimatePresence>
-      <StyledTitleContainer variant={variant}>
+      <StyledTitleContainer>
         <OverflowingTextWithTooltip text={isEmpty ? t`Add Widget` : title} />
+        {isDefined(widgetHeaderCount) && (
+          <StyledCount>{formatNumber(widgetHeaderCount)}</StyledCount>
+        )}
       </StyledTitleContainer>
       <StyledRightContainer>
-        {isNonEmptyArray(actions) && (
-          <StyledActionsContainer>
-            {actions.map((action) => (
-              <WidgetActionRenderer key={action.id} action={action} />
-            ))}
-          </StyledActionsContainer>
-        )}
+        {hasAccess && <WidgetCardHeaderActionsRenderer />}
         {isDefined(forbiddenDisplay) && forbiddenDisplay}
         <AnimatePresence initial={false}>
           {!isResizing &&
             !isEmpty &&
             isInEditMode &&
-            isDeletingWidgetEnabled &&
             onRemove &&
             widgetCardHovered && (
               <StyledIconButtonContainer
@@ -125,11 +129,13 @@ export const WidgetCardHeader = ({
                 }}
               >
                 <IconButton
+                  aria-label={t`Remove widget`}
                   onClick={onRemove}
-                  Icon={IconTrash}
-                  variant="tertiary"
-                  size="small"
-                />
+                  variant="ghost"
+                  size="sm"
+                >
+                  <IconTrash />
+                </IconButton>
               </StyledIconButtonContainer>
             )}
         </AnimatePresence>

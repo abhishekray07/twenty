@@ -1,5 +1,5 @@
-import { createContext, type ReactElement, useContext } from 'react';
-import { type IconComponent } from 'twenty-ui/display';
+import { createContext, useContext } from 'react';
+import { type IconComponent } from 'twenty-ui/icon';
 
 export type RecordInlineCellContextProps = {
   readonly?: boolean;
@@ -8,9 +8,7 @@ export type RecordInlineCellContextProps = {
   labelWidth?: number;
   showLabel?: boolean;
   buttonIcon?: IconComponent;
-  editModeContent?: ReactElement;
   editModeContentOnly?: boolean;
-  displayModeContent?: ReactElement;
   isDisplayModeFixHeight?: boolean;
   disableHoverEffect?: boolean;
   loading?: boolean;
@@ -26,9 +24,7 @@ const defaultRecordInlineCellContextProp: RecordInlineCellContextProps = {
   labelWidth: 0,
   showLabel: false,
   buttonIcon: undefined,
-  editModeContent: undefined,
   editModeContentOnly: false,
-  displayModeContent: undefined,
   isDisplayModeFixHeight: false,
   disableHoverEffect: false,
   loading: false,

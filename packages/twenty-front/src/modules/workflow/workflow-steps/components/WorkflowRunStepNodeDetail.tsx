@@ -5,7 +5,10 @@ import {
 } from '@/workflow/types/Workflow';
 import { getStepDefinitionOrThrow } from '@/workflow/utils/getStepDefinitionOrThrow';
 import { WorkflowEditActionAiAgent } from '@/workflow/workflow-steps/workflow-actions/ai-agent-action/components/WorkflowEditActionAiAgent';
+import { WorkflowEditActionClassify } from '@/workflow/workflow-steps/workflow-actions/classify-action/components/WorkflowEditActionClassify';
 import { WorkflowActionCode } from '@/workflow/workflow-steps/workflow-actions/code-action/components/WorkflowActionCode';
+import { WorkflowEditActionCreateCalendarEvent } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowEditActionCreateCalendarEvent';
+import { WorkflowEditActionSendChatMessage } from '@/workflow/workflow-steps/workflow-actions/send-chat-message-action/components/WorkflowEditActionSendChatMessage';
 import { WorkflowEditActionCreateRecord } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowEditActionCreateRecord';
 import { WorkflowEditActionDeleteRecord } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowEditActionDeleteRecord';
 import { WorkflowEditActionEmpty } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowEditActionEmpty';
@@ -13,12 +16,14 @@ import { WorkflowEditActionEmailBase } from '@/workflow/workflow-steps/workflow-
 import { WorkflowEditActionUpdateRecord } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowEditActionUpdateRecord';
 import { WorkflowEditActionUpsertRecord } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowEditActionUpsertRecord';
 import { WorkflowEditActionDelay } from '@/workflow/workflow-steps/workflow-actions/delay-actions/components/WorkflowEditActionDelay';
+import { WorkflowEditActionWaitForEvent } from '@/workflow/workflow-steps/workflow-actions/wait-for-event-action/components/WorkflowEditActionWaitForEvent';
 import { WorkflowEditActionFilter } from '@/workflow/workflow-steps/workflow-actions/filter-action/components/WorkflowEditActionFilter';
 import { WorkflowEditActionFindRecords } from '@/workflow/workflow-steps/workflow-actions/find-records-action/components/WorkflowEditActionFindRecords';
 import { WorkflowEditActionFormFiller } from '@/workflow/workflow-steps/workflow-actions/form-action/components/WorkflowEditActionFormFiller';
 import { WorkflowEditActionHttpRequest } from '@/workflow/workflow-steps/workflow-actions/http-request-action/components/WorkflowEditActionHttpRequest';
 import { WorkflowEditActionIfElse } from '@/workflow/workflow-steps/workflow-actions/if-else-action/components/WorkflowEditActionIfElse';
 import { WorkflowEditActionIterator } from '@/workflow/workflow-steps/workflow-actions/iterator-action/components/WorkflowEditActionIterator';
+import { WorkflowEditActionPickRecord } from '@/workflow/workflow-steps/workflow-actions/pick-record-action/components/WorkflowEditActionPickRecord';
 import { WorkflowEditActionLogicFunction } from '@/workflow/workflow-steps/workflow-actions/logic-function-action/components/WorkflowEditActionLogicFunction';
 import { WorkflowEditTriggerCronForm } from '@/workflow/workflow-trigger/components/WorkflowEditTriggerCronForm';
 import { WorkflowEditTriggerDatabaseEventForm } from '@/workflow/workflow-trigger/components/WorkflowEditTriggerDatabaseEventForm';
@@ -139,6 +144,28 @@ export const WorkflowRunStepNodeDetail = ({
             />
           );
         }
+        case 'SEND_CHAT_MESSAGE': {
+          return (
+            <WorkflowEditActionSendChatMessage
+              key={stepId}
+              action={stepDefinition.definition}
+              actionOptions={{
+                readonly: true,
+              }}
+            />
+          );
+        }
+        case 'CREATE_CALENDAR_EVENT': {
+          return (
+            <WorkflowEditActionCreateCalendarEvent
+              key={stepId}
+              action={stepDefinition.definition}
+              actionOptions={{
+                readonly: true,
+              }}
+            />
+          );
+        }
         case 'CREATE_RECORD': {
           return (
             <WorkflowEditActionCreateRecord
@@ -199,13 +226,27 @@ export const WorkflowRunStepNodeDetail = ({
           );
         }
 
+        case 'PICK_RECORD': {
+          return (
+            <WorkflowEditActionPickRecord
+              key={stepId}
+              action={stepDefinition.definition}
+              actionOptions={{
+                readonly: true,
+              }}
+            />
+          );
+        }
+
         case 'FORM': {
           return (
             <WorkflowEditActionFormFiller
               key={stepId}
               action={stepDefinition.definition}
               actionOptions={{
-                readonly: stepExecutionStatus !== 'PENDING',
+                readonly:
+                  stepExecutionStatus !== 'PENDING' &&
+                  stepExecutionStatus !== 'RUNNING',
               }}
             />
           );
@@ -225,6 +266,17 @@ export const WorkflowRunStepNodeDetail = ({
         case 'AI_AGENT': {
           return (
             <WorkflowEditActionAiAgent
+              key={stepId}
+              action={stepDefinition.definition}
+              actionOptions={{
+                readonly: true,
+              }}
+            />
+          );
+        }
+        case 'CLASSIFY': {
+          return (
+            <WorkflowEditActionClassify
               key={stepId}
               action={stepDefinition.definition}
               actionOptions={{
@@ -279,6 +331,17 @@ export const WorkflowRunStepNodeDetail = ({
         case 'DELAY': {
           return (
             <WorkflowEditActionDelay
+              key={stepId}
+              action={stepDefinition.definition}
+              actionOptions={{
+                readonly: true,
+              }}
+            />
+          );
+        }
+        case 'WAIT_FOR_EVENT': {
+          return (
+            <WorkflowEditActionWaitForEvent
               key={stepId}
               action={stepDefinition.definition}
               actionOptions={{

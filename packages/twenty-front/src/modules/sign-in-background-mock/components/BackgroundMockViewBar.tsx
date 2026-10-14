@@ -1,13 +1,9 @@
 import { styled } from '@linaria/react';
-import { useContext } from 'react';
 
 import { TopBar } from '@/ui/layout/top-bar/components/TopBar';
-import {
-  IconBuildingSkyscraper,
-  IconChevronDown,
-  TintedIconTile,
-} from 'twenty-ui/display';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { TintedIconTile } from 'twenty-ui/components/data-display';
+import { IconBuildingSkyscraper, IconChevronDown } from 'twenty-ui/icon';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 const StyledViewPicker = styled.div`
   align-items: center;
@@ -34,13 +30,16 @@ const StyledRightAction = styled.div`
 `;
 
 export const BackgroundMockViewBar = () => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   return (
     <TopBar
       leftComponent={
         <StyledViewPicker>
-          <TintedIconTile Icon={IconBuildingSkyscraper} color="blue" />
+          <TintedIconTile
+            icon={<IconBuildingSkyscraper size={theme.icon.size.md} />}
+            color="blue"
+          />
           <span>All Companies</span>
           <StyledViewPickerCount>· 599</StyledViewPickerCount>
           <IconChevronDown

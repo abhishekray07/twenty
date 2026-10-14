@@ -2,13 +2,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { getToastOptionsFromError } from '@/error-handler/utils/getToastOptionsFromError';
+import { useToast } from 'twenty-ui/components/feedback';
 
 import { useMutation } from '@apollo/client/react';
 import { t } from '@lingui/core/macro';
 import { SettingsPath } from 'twenty-shared/types';
 import {
   type ConnectionParametersInput,
+  EmailConnectionSecurity,
   SaveImapSmtpCaldavAccountDocument,
 } from '~/generated-metadata/graphql';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
@@ -22,7 +24,6 @@ import {
   connectionImapSmtpCalDav,
   connectionImapSmtpCalDavUpdate,
 } from '@/settings/accounts/validation-schemas/connectionImapSmtpCalDav';
-import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { isNonEmptyString } from '@sniptt/guards';
 import { ACCOUNT_TYPES } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
@@ -34,13 +35,30 @@ type UseConnectionFormProps = {
 };
 
 export type ConnectionFormData = {
+  name: string;
   handle: string;
 } & ImapSmtpCaldavAccountInput;
 
 const DEFAULT_PROTOCOL_VALUES: Record<string, ConnectionParametersInput> = {
-  IMAP: { host: '', port: 993, password: '', secure: true },
-  SMTP: { host: '', username: '', port: 587, password: '', secure: true },
-  CALDAV: { host: '', port: 443, password: '', secure: true },
+  IMAP: {
+    host: '',
+    port: 993,
+    password: '',
+    connectionSecurity: EmailConnectionSecurity.SSL_TLS,
+  },
+  SMTP: {
+    host: '',
+    username: '',
+    port: 587,
+    password: '',
+    connectionSecurity: EmailConnectionSecurity.STARTTLS,
+  },
+  CALDAV: {
+    host: '',
+    port: 443,
+    password: '',
+    connectionSecurity: EmailConnectionSecurity.SSL_TLS,
+  },
 };
 
 export const useImapSmtpCaldavConnectionForm = ({
@@ -55,13 +73,14 @@ export const useImapSmtpCaldavConnectionForm = ({
       isEditing ? connectionImapSmtpCalDavUpdate : connectionImapSmtpCalDav,
     ),
     defaultValues: {
+      name: '',
       handle: '',
       ...DEFAULT_PROTOCOL_VALUES,
     },
   });
 
   const { handleSubmit, formState, watch, reset } = formMethods;
-  const { enqueueErrorSnackBar, enqueueSuccessSnackBar } = useSnackBar();
+  const { enqueueToast } = useToast();
   const { isSubmitting } = formState;
 
   const { connectedAccount, loading: accountLoading } =
@@ -72,6 +91,7 @@ export const useImapSmtpCaldavConnectionForm = ({
   useEffect(() => {
     if (isDefined(connectedAccount)) {
       reset({
+        name: connectedAccount.connectionParameters?.name || '',
         handle: connectedAccount.handle || '',
         IMAP: {
           ...DEFAULT_PROTOCOL_VALUES.IMAP,
@@ -151,7 +171,10 @@ export const useImapSmtpCaldavConnectionForm = ({
               ? { id: connectedAccountId }
               : {}),
             handle: formValues.handle,
-            connectionParameters,
+            connectionParameters: {
+              ...connectionParameters,
+              name: formValues.name,
+            },
           },
         });
         if (!isDefined(data)) return;
@@ -160,7 +183,7 @@ export const useImapSmtpCaldavConnectionForm = ({
           ? t`Connection successfully updated`
           : t`Connection successfully created`;
 
-        enqueueSuccessSnackBar({ message: successMessage });
+        enqueueToast({ status: 'success', children: successMessage });
 
         const { connectedAccountId: returnedConnectedAccountId } =
           data?.saveImapSmtpCaldavAccount ?? {};
@@ -169,9 +192,7 @@ export const useImapSmtpCaldavConnectionForm = ({
           connectedAccountId: returnedConnectedAccountId,
         });
       } catch (error) {
-        enqueueErrorSnackBar({
-          apolloError: CombinedGraphQLErrors.is(error) ? error : undefined,
-        });
+        enqueueToast(getToastOptionsFromError({ error }));
       }
     },
     [
@@ -179,9 +200,8 @@ export const useImapSmtpCaldavConnectionForm = ({
       saveConnection,
       isEditing,
       connectedAccountId,
-      enqueueSuccessSnackBar,
+      enqueueToast,
       navigate,
-      enqueueErrorSnackBar,
     ],
   );
 

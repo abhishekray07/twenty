@@ -8,12 +8,9 @@ import { WorkflowStepFooter } from '@/workflow/workflow-steps/components/Workflo
 import { WorkflowVariablePicker } from '@/workflow/workflow-variables/components/WorkflowVariablePicker';
 import { t } from '@lingui/core/macro';
 import { useEffect, useState } from 'react';
-import {
-  HorizontalSeparator,
-  IconCalendar,
-  IconHourglassHigh,
-} from 'twenty-ui/display';
-import { type SelectOption } from 'twenty-ui/input';
+import { IconCalendar, IconHourglassHigh } from 'twenty-ui/icon';
+import { Separator } from 'twenty-ui/primitives/layout';
+import { type SelectOption } from 'twenty-ui/primitives/input';
 
 type WorkflowEditActionDelayProps = {
   action: WorkflowDelayAction;
@@ -181,7 +178,7 @@ export const WorkflowEditActionDelay = ({
           onChange={handleDelayTypeChange}
           disabled={actionOptions.readonly}
         />
-        <HorizontalSeparator noMargin />
+        <Separator />
 
         {action.settings.input.delayType === 'SCHEDULED_DATE' && (
           <FormDateTimeFieldInput
@@ -235,7 +232,7 @@ export const WorkflowEditActionDelay = ({
         )}
       </WorkflowStepBody>
 
-      <WorkflowStepFooter stepId={action.id} />
+      {!actionOptions.readonly && <WorkflowStepFooter stepId={action.id} />}
     </>
   );
 };

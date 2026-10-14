@@ -1,14 +1,16 @@
 import { expect, test } from '../lib/fixtures/screenshot';
 test.describe.serial('Create Kanban View', () => {
+// Unique per run: serial-group retries re-create the field, and a duplicate label blocks the form.
+const industryLabel = `Industry ${Date.now()}`;
 test('Create Industry Select Field', async ({ page }) => {
-    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('link', { name: 'Data model' }).click();
     await page.getByRole('link', { name: 'Opportunities' }).click();
-    await expect(page.getByRole('button', { name: 'New Field' })).toBeVisible();
-    await page.getByRole('button', { name: 'New Field' }).click();
+    await expect(page.getByRole('link', { name: 'New Field' })).toBeVisible();
+    await page.getByRole('link', { name: 'New Field' }).click();
     await page.getByRole('link', { name: 'Select', exact: true }).click();
     await page.getByRole('textbox', { name: 'Employees' }).click();
-    await page.getByRole('textbox', { name: 'Employees' }).fill('Industry');
+    await page.getByRole('textbox', { name: 'Employees' }).fill(industryLabel);
     await page.getByRole('textbox').nth(1).click();
     await page.getByRole('textbox').nth(1).press('ControlOrMeta+a');
     await page.getByRole('textbox').nth(1).fill('Food');
@@ -18,8 +20,8 @@ test('Create Industry Select Field', async ({ page }) => {
     await page.getByRole('button', { name: 'Option 3' }).getByRole('textbox').fill('Travel');
     await page.getByRole('button', { name: 'Save' }).click();
     await page.waitForURL('**/objects/opportunities');
-    await page.waitForSelector('text=Industry');
-    await expect(page.getByText('Industry')).toBeVisible();
+    await page.waitForSelector(`text=${industryLabel}`);
+    await expect(page.getByText(industryLabel)).toBeVisible();
 });
 
 test('Create Kanban View from Industry Select Field', async ({ page }) => {
@@ -30,8 +32,15 @@ test('Create Kanban View from Industry Select Field', async ({ page }) => {
   await page.getByRole('textbox').fill('By industry');
   await page.getByRole('button', { name: 'Table', exact: true }).click();
   await page.getByText('Kanban').click();
-  await page.locator('[aria-controls="view-picker-kanban-field-options"]').click();
-  await page.getByRole('option', { name: 'Industry' }).click();
+  await page
+    .getByText('Stages', { exact: true })
+    .locator('xpath=..')
+    .getByRole('button')
+    .click();
+  await page
+    .getByRole('dialog', { name: 'Stages' })
+    .getByRole('button', { name: industryLabel })
+    .click();
   await page.getByRole('button', { name: 'Create new view' }).click();
   await expect(page.getByText('Food')).toBeVisible({ timeout: 30000 });
   await expect(page.getByText('Tech')).toBeVisible();

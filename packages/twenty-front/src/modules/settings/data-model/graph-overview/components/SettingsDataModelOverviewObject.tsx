@@ -1,8 +1,9 @@
 import { styled } from '@linaria/react';
 import { type Node, type NodeProps } from '@xyflow/react';
-import { useContext, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { ObjectMetadataIcon } from '@/object-metadata/components/ObjectMetadataIcon';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { isHiddenSystemField } from '@/object-metadata/utils/isHiddenSystemField';
@@ -14,9 +15,9 @@ import { SettingsItemTypeTag } from '@/settings/components/SettingsItemTypeTag';
 import { ObjectFieldRowWithoutRelation } from '@/settings/data-model/graph-overview/components/SettingsDataModelOverviewFieldWithoutRelation';
 import '@xyflow/react/dist/style.css';
 import { SettingsPath } from 'twenty-shared/types';
-import { getSettingsPath } from 'twenty-shared/utils';
-import { IconChevronDown, IconChevronUp } from 'twenty-ui/display';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { getSettingsPath, isDefined } from 'twenty-shared/utils';
+import { IconChevronDown, IconChevronUp } from 'twenty-ui/icon';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 type SettingsDataModelOverviewObjectNode = Node<
   EnrichedObjectMetadataItem,
@@ -45,7 +46,8 @@ const StyledHeader = styled.div`
 
 const StyledObjectName = styled.div`
   border: 0;
-  border-radius: 4px 4px 0 0;
+  border-radius: ${themeCssVariables.border.radius.sm}
+    ${themeCssVariables.border.radius.sm} 0 0;
   display: flex;
   font-weight: ${themeCssVariables.font.weight.medium};
   gap: ${themeCssVariables.spacing[1]};
@@ -107,7 +109,8 @@ const StyledObjectLinkContainer = styled.div`
 export const SettingsDataModelOverviewObject = ({
   data: objectMetadataItem,
 }: SettingsDataModelOverviewObjectProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
+  const { formatNumber } = useNumberFormat();
   const [otherFieldsExpanded, setOtherFieldsExpanded] = useState(false);
 
   const { totalCount } = useFindManyRecords({
@@ -139,7 +142,10 @@ export const SettingsDataModelOverviewObject = ({
               {objectMetadataItem.labelPlural}
             </Link>
           </StyledObjectLinkContainer>
-          <StyledObjectInstanceCount> · {totalCount}</StyledObjectInstanceCount>
+          <StyledObjectInstanceCount>
+            {' '}
+            · {isDefined(totalCount) ? formatNumber(totalCount) : totalCount}
+          </StyledObjectInstanceCount>
         </StyledObjectName>
         <SettingsItemTypeTag item={objectMetadataItem} />
       </StyledHeader>

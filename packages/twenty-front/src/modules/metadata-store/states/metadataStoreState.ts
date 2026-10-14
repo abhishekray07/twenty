@@ -1,3 +1,4 @@
+import { metadataStoreStorage } from '@/metadata-store/storage/metadataStoreStorage';
 import { createAtomFamilyState } from '@/ui/utilities/state/jotai/utils/createAtomFamilyState';
 
 export type MetadataEntityStoreStatus =
@@ -30,9 +31,8 @@ export const ALL_METADATA_ENTITY_KEYS = [
   'skills',
   'rowLevelPermissionPredicates',
   'rowLevelPermissionPredicateGroups',
-  // TODO: clarify what really is metadata  (syncable entity?)
-  // vs 'core engine entity' or 'broadcastable entity'
-  'agentChatThreads',
+  // TODO: clarify what is metadata (syncable entity?) vs core engine or broadcastable entity
+  'applications',
 ] as const;
 
 export type MetadataEntityKey = (typeof ALL_METADATA_ENTITY_KEYS)[number];
@@ -51,12 +51,14 @@ const METADATA_STORE_ITEM_INITIAL_VALUE: MetadataStoreItem = {
   status: 'empty',
 };
 
+export const METADATA_STORE_KEY_PREFIX = 'metadataStoreState__';
+
 export const metadataStoreState = createAtomFamilyState<
   MetadataStoreItem,
   MetadataEntityKey
 >({
   key: 'metadataStoreState',
   defaultValue: METADATA_STORE_ITEM_INITIAL_VALUE,
-  useLocalStorage: true,
+  storage: metadataStoreStorage,
   localStorageOptions: { getOnInit: true },
 });

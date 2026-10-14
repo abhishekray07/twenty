@@ -10,13 +10,14 @@ import { deleteOneOperationFactory } from 'test/integration/graphql/utils/delete
 import { deleteRole } from 'test/integration/graphql/utils/delete-one-role.util';
 import { findManyOperationFactory } from 'test/integration/graphql/utils/find-many-operation-factory.util';
 import { findOneOperationFactory } from 'test/integration/graphql/utils/find-one-operation-factory.util';
-import { makeGraphqlAPIRequestWithMemberRole } from 'test/integration/graphql/utils/make-graphql-api-request-with-member-role.util';
-import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
+import { groupByOperationFactory } from 'test/integration/graphql/utils/group-by-operation-factory.util';
+import { makeGraphqlApiRequestWithMemberRole } from 'test/integration/graphql/utils/make-graphql-api-request-with-member-role.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { updateManyOperationFactory } from 'test/integration/graphql/utils/update-many-operation-factory.util';
 import { updateOneOperationFactory } from 'test/integration/graphql/utils/update-one-operation-factory.util';
 import { updateWorkspaceMemberRole } from 'test/integration/graphql/utils/update-workspace-member-role.util';
 import { upsertFieldPermissions } from 'test/integration/graphql/utils/upsert-field-permissions.util';
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 
 import { ErrorCode } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import { PermissionsExceptionMessage } from 'src/engine/metadata-modules/permissions/permissions.exception';
@@ -24,7 +25,7 @@ import { WORKSPACE_MEMBER_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev
 
 const client = request(`http://localhost:${APP_PORT}`);
 
-const COMPANY_GQL_FIELDS_WITH_PEOPLE_CITY = `
+const COMPANY_GQL_FIELDS_WITH_PEOPLE_JOB_TITLE = `
       id
       name
       people {
@@ -35,32 +36,16 @@ const COMPANY_GQL_FIELDS_WITH_PEOPLE_CITY = `
               firstName
               lastName
             }
-            city
+            jobTitle
           }
         }
       }
 `;
 
-const COMPANY_GQL_FIELDS_WITH_EMPLOYEES = `
+const COMPANY_GQL_FIELDS_WITH_POSITION = `
       id
       name
-      employees
-      people {
-        edges {
-          node {
-            id
-            name {
-              firstName
-              lastName
-            }
-          }
-        }
-      }
-`;
-
-const COMPANY_GQL_FIELDS_WITHOUT_EMPLOYEES_AND_WITHOUT_PEOPLE_CITY = `
-      id
-      name
+      position
       people {
         edges {
           node {
@@ -74,11 +59,27 @@ const COMPANY_GQL_FIELDS_WITHOUT_EMPLOYEES_AND_WITHOUT_PEOPLE_CITY = `
       }
 `;
 
-const COMPANY_GQL_FIELDS_WITH_PEOPLE_CITY_AGGREGATE = `
+const COMPANY_GQL_FIELDS_WITHOUT_POSITION_AND_WITHOUT_PEOPLE_JOB_TITLE = `
       id
       name
       people {
-        percentageEmptyCity
+        edges {
+          node {
+            id
+            name {
+              firstName
+              lastName
+            }
+          }
+        }
+      }
+`;
+
+const COMPANY_GQL_FIELDS_WITH_PEOPLE_JOB_TITLE_AGGREGATE = `
+      id
+      name
+      people {
+        percentageEmptyJobTitle
       }
 `;
 
@@ -90,7 +91,7 @@ const expectNoGraphQLErrors = (response: any) => {
 const expectPermissionDeniedError = (response: any) => {
   expect(response.body.errors).toBeDefined();
   expect(response.body.errors.length).toBeGreaterThan(0);
-  expect(response.body.errors[0].message).toBe(
+  expect(response.body.errors[0].message).toContain(
     PermissionsExceptionMessage.PERMISSION_DENIED,
   );
   expect(response.body.errors[0].extensions.code).toBe(ErrorCode.FORBIDDEN);
@@ -141,7 +142,6 @@ describe('Field permissions restrictions', () => {
   };
 
   beforeAll(async () => {
-    // Get the original Member role ID for restoration later
     const getRolesQuery = {
       query: `
         query GetRoles {
@@ -161,7 +161,6 @@ describe('Field permissions restrictions', () => {
       (role: any) => role.label === 'Member',
     ).id;
 
-    // Create a company and a person
     companyId = randomUUID();
     personId = randomUUID();
     const createCompanyOp = createOneOperationFactory({
@@ -170,16 +169,15 @@ describe('Field permissions restrictions', () => {
       data: { id: companyId, name: 'TestCompany' },
     });
 
-    await makeGraphqlAPIRequest(createCompanyOp);
+    await makeGraphqlApiRequest(createCompanyOp);
     const createPersonOperation = createOneOperationFactory({
       objectMetadataSingularName: 'person',
-      gqlFields: 'id city',
-      data: { id: personId, city: 'Paris', companyId },
+      gqlFields: 'id jobTitle',
+      data: { id: personId, jobTitle: 'Paris', companyId },
     });
 
-    await makeGraphqlAPIRequest(createPersonOperation);
+    await makeGraphqlApiRequest(createPersonOperation);
 
-    // Get object and field metadata IDs
     const getObjectMetadataOp = {
       query: gql`
         query {
@@ -195,7 +193,7 @@ describe('Field permissions restrictions', () => {
       `,
     };
     const objectMetadataResponse =
-      await makeMetadataAPIRequest(getObjectMetadataOp);
+      await makeMetadataApiRequest(getObjectMetadataOp);
     const objects = objectMetadataResponse.body.data.objects.edges;
 
     companyObjectId = objects.find(
@@ -223,23 +221,22 @@ describe('Field permissions restrictions', () => {
       `,
     };
     const fieldMetadataResponse =
-      await makeMetadataAPIRequest(getFieldMetadataOp);
+      await makeMetadataApiRequest(getFieldMetadataOp);
     const fields = fieldMetadataResponse.body.data.fields.edges;
 
     restrictedCompanyFieldId = fields.find(
       (field: any) =>
-        field.node.name === 'employees' &&
+        field.node.name === 'position' &&
         field.node.object.nameSingular === 'company',
     ).node.id;
     restrictedPersonFieldId = fields.find(
       (field: any) =>
-        field.node.name === 'city' &&
+        field.node.name === 'jobTitle' &&
         field.node.object.nameSingular === 'person',
     ).node.id;
   });
 
   afterAll(async () => {
-    // Restore original role
     const restoreMemberRoleQuery = {
       query: `
         mutation UpdateWorkspaceMemberRole {
@@ -292,41 +289,39 @@ describe('Field permissions restrictions', () => {
       const graphqlOperation = findManyOperationFactory({
         objectMetadataSingularName: 'company',
         objectMetadataPluralName: 'companies',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
       });
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectNoGraphQLErrors(response);
-      expect(
-        response.body.data.companies.edges[0].node.employees,
-      ).toBeDefined();
+      expect(response.body.data.companies.edges[0].node.position).toBeDefined();
     });
 
     it('2. findOne', async () => {
       const graphqlOperation = findOneOperationFactory({
         objectMetadataSingularName: 'company',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
         filter: { id: { eq: companyId } },
       });
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectNoGraphQLErrors(response);
-      expect(response.body.data.company.employees).toBeDefined();
+      expect(response.body.data.company.position).toBeDefined();
     });
 
     it('3. updateMany', async () => {
       const graphqlOperation = updateManyOperationFactory({
         objectMetadataSingularName: 'company',
         objectMetadataPluralName: 'companies',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
         filter: { id: { eq: companyId } },
         data: { name: 'TestUpdate' },
       });
 
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectPermissionDeniedError(response);
     });
@@ -334,13 +329,13 @@ describe('Field permissions restrictions', () => {
     it('4. updateOne', async () => {
       const graphqlOperation = updateOneOperationFactory({
         objectMetadataSingularName: 'company',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
         recordId: companyId,
         data: { name: 'TestUpdate' },
       });
 
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectPermissionDeniedError(response);
     });
@@ -349,7 +344,7 @@ describe('Field permissions restrictions', () => {
       const graphqlOperation = createManyOperationFactory({
         objectMetadataSingularName: 'company',
         objectMetadataPluralName: 'companies',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
         data: [
           { id: randomUUID(), name: 'TestCompany' },
           { id: randomUUID(), name: 'TestCompany2' },
@@ -357,7 +352,7 @@ describe('Field permissions restrictions', () => {
       });
 
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectPermissionDeniedError(response);
     });
@@ -365,12 +360,12 @@ describe('Field permissions restrictions', () => {
     it('5. createOne', async () => {
       const graphqlOperation = createOneOperationFactory({
         objectMetadataSingularName: 'company',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
         data: { id: randomUUID(), name: 'TestCompany3' },
       });
 
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectPermissionDeniedError(response);
     });
@@ -379,12 +374,12 @@ describe('Field permissions restrictions', () => {
       const graphqlOperation = deleteManyOperationFactory({
         objectMetadataSingularName: 'company',
         objectMetadataPluralName: 'companies',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
         filter: { id: { eq: companyId } },
       });
 
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectPermissionDeniedError(response);
     });
@@ -392,12 +387,12 @@ describe('Field permissions restrictions', () => {
     it('7. deleteOne', async () => {
       const graphqlOperation = deleteOneOperationFactory({
         objectMetadataSingularName: 'company',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_EMPLOYEES,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
         recordId: companyId,
       });
 
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectPermissionDeniedError(response);
     });
@@ -412,14 +407,14 @@ describe('Field permissions restrictions', () => {
     const graphqlOperation = findManyOperationFactory({
       objectMetadataSingularName: 'company',
       objectMetadataPluralName: 'companies',
-      gqlFields: COMPANY_GQL_FIELDS_WITH_PEOPLE_CITY,
+      gqlFields: COMPANY_GQL_FIELDS_WITH_PEOPLE_JOB_TITLE,
     });
     const response =
-      await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+      await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
     expectNoGraphQLErrors(response);
     expect(
-      response.body.data.companies.edges[0].node.people.edges[0].node.city,
+      response.body.data.companies.edges[0].node.people.edges[0].node.jobTitle,
     ).toBeDefined();
   });
 
@@ -435,18 +430,151 @@ describe('Field permissions restrictions', () => {
       restrictedPersonFieldId,
     );
 
-    // Query NOT requesting the restricted field
     const graphqlOperation = findManyOperationFactory({
       objectMetadataSingularName: 'company',
       objectMetadataPluralName: 'companies',
-      gqlFields: COMPANY_GQL_FIELDS_WITHOUT_EMPLOYEES_AND_WITHOUT_PEOPLE_CITY,
+      gqlFields:
+        COMPANY_GQL_FIELDS_WITHOUT_POSITION_AND_WITHOUT_PEOPLE_JOB_TITLE,
     });
     const response =
-      await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+      await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
     expect(response.body.errors).toBeUndefined();
     expect(response.body.data).toBeDefined();
     expect(response.body.data.companies.edges[0].node.id).toBeDefined();
+  });
+
+  it('should reject filters on fields without read permission', async () => {
+    await upsertFieldPermissions({
+      roleId: customRoleId,
+      fieldPermissions: [
+        {
+          objectMetadataId: personObjectId,
+          fieldMetadataId: restrictedPersonFieldId,
+          canReadFieldValue: false,
+          canUpdateFieldValue: null,
+        },
+      ],
+    });
+
+    const graphqlOperation = {
+      query: gql`
+        query People($filter: PersonFilterInput) {
+          people(filter: $filter, first: 0) {
+            totalCount
+          }
+        }
+      `,
+      variables: {
+        filter: { jobTitle: { like: 'Par%' } },
+      },
+    };
+
+    const response =
+      await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
+
+    expectPermissionDeniedError(response);
+  });
+
+  it('should reject ordering a group by on a relation record by a target field without read permission', async () => {
+    await upsertFieldPermissions({
+      roleId: customRoleId,
+      fieldPermissions: [
+        {
+          objectMetadataId: companyObjectId,
+          fieldMetadataId: restrictedCompanyFieldId,
+          canReadFieldValue: false,
+          canUpdateFieldValue: null,
+        },
+      ],
+    });
+
+    const graphqlOperation = groupByOperationFactory({
+      objectMetadataSingularName: 'person',
+      objectMetadataPluralName: 'people',
+      groupBy: [{ companyId: true }],
+      orderBy: [{ company: { position: 'AscNullsLast' } }],
+    });
+
+    const response =
+      await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
+
+    expectPermissionDeniedError(response);
+  });
+
+  it('should allow ordering a group by on a relation record by a readable target field', async () => {
+    await upsertFieldPermissions({
+      roleId: customRoleId,
+      fieldPermissions: [
+        {
+          objectMetadataId: companyObjectId,
+          fieldMetadataId: restrictedCompanyFieldId,
+          canReadFieldValue: false,
+          canUpdateFieldValue: null,
+        },
+      ],
+    });
+
+    const graphqlOperation = groupByOperationFactory({
+      objectMetadataSingularName: 'person',
+      objectMetadataPluralName: 'people',
+      groupBy: [{ companyId: true }],
+      orderBy: [{ company: { name: 'AscNullsLast' } }],
+    });
+
+    const response =
+      await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
+
+    expectNoGraphQLErrors(response);
+  });
+
+  it('should return record field values in a group by records selection when the field is readable', async () => {
+    const graphqlOperation = groupByOperationFactory({
+      objectMetadataSingularName: 'person',
+      objectMetadataPluralName: 'people',
+      groupBy: [{ companyId: true }],
+      filter: { id: { eq: personId } },
+      gqlFields: 'edges { node { id jobTitle } }',
+    });
+
+    const response =
+      await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
+
+    expectNoGraphQLErrors(response);
+
+    const jobTitles = response.body.data.peopleGroupBy
+      .flatMap(
+        (group: { edges: { node: { jobTitle: string } }[] }) => group.edges,
+      )
+      .map((edge: { node: { jobTitle: string } }) => edge.node.jobTitle);
+
+    expect(jobTitles).toContain('Paris');
+  });
+
+  it('should reject reading a record field without read permission in a group by records selection', async () => {
+    await upsertFieldPermissions({
+      roleId: customRoleId,
+      fieldPermissions: [
+        {
+          objectMetadataId: personObjectId,
+          fieldMetadataId: restrictedPersonFieldId,
+          canReadFieldValue: false,
+          canUpdateFieldValue: null,
+        },
+      ],
+    });
+
+    const graphqlOperation = groupByOperationFactory({
+      objectMetadataSingularName: 'person',
+      objectMetadataPluralName: 'people',
+      groupBy: [{ companyId: true }],
+      gqlFields: 'edges { node { id jobTitle } }',
+    });
+
+    const response =
+      await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
+
+    expectPermissionDeniedError(response);
   });
 
   describe('Aggregate operations', () => {
@@ -457,21 +585,20 @@ describe('Field permissions restrictions', () => {
         restrictedCompanyFieldId,
       );
 
-      // Query requesting the aggregate restricted field
       const graphqlOperation = {
         query: gql`
           query Companies {
             companies {
-              countEmptyEmployees
+              countEmptyPosition
             }
           }
         `,
       };
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectNoGraphQLErrors(response);
-      expect(response.body.data.companies.countEmptyEmployees).toBeDefined();
+      expect(response.body.data.companies.countEmptyPosition).toBeDefined();
     });
 
     it('2. should allow aggregate over a restricted field on a related object', async () => {
@@ -481,18 +608,18 @@ describe('Field permissions restrictions', () => {
         restrictedPersonFieldId,
       );
 
-      // Query requesting the aggregate restricted field
       const graphqlOperation = findManyOperationFactory({
         objectMetadataSingularName: 'company',
         objectMetadataPluralName: 'companies',
-        gqlFields: COMPANY_GQL_FIELDS_WITH_PEOPLE_CITY_AGGREGATE,
+        gqlFields: COMPANY_GQL_FIELDS_WITH_PEOPLE_JOB_TITLE_AGGREGATE,
       });
       const response =
-        await makeGraphqlAPIRequestWithMemberRole(graphqlOperation);
+        await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
       expectNoGraphQLErrors(response);
       expect(
-        response.body.data.companies.edges[0].node.people.percentageEmptyCity,
+        response.body.data.companies.edges[0].node.people
+          .percentageEmptyJobTitle,
       ).toBeDefined();
     });
   });

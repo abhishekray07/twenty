@@ -37,6 +37,10 @@ export class DnsManagerService {
     }
   }
 
+  isConfigured(): boolean {
+    return isDefined(this.cloudflareClient);
+  }
+
   async registerHostname(customDomain: string, options?: DnsManagerOptions) {
     dnsManagerValidator.isCloudflareInstanceDefined(this.cloudflareClient);
 
@@ -218,7 +222,6 @@ export class DnsManagerService {
       return customHostnames.result[0];
     }
 
-    // should never happen. error 5xx
     const hostnameCount = customHostnames.result.length;
     const domainName = hostname;
 
@@ -226,7 +229,7 @@ export class DnsManagerService {
       'More than one custom hostname found in cloudflare',
       DnsManagerExceptionCode.MULTIPLE_HOSTNAMES_FOUND,
       {
-        userFriendlyMessage: msg`${hostnameCount} hostnames found for domain '${domainName}'. Expect 1`,
+        userFriendlyMessage: msg`${hostnameCount} hostnames found for domain "${domainName}". Expect 1`,
       },
     );
   }
@@ -245,7 +248,6 @@ export class DnsManagerService {
     const { ssl, verification_errors, created_at } = customHostname;
 
     return {
-      // wait 10s before starting the real check
       redirection:
         created_at &&
         new Date().getTime() - new Date(created_at).getTime() < 1000 * 10

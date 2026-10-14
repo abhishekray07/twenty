@@ -14,9 +14,8 @@ import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomState
 import { t } from '@lingui/core/macro';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
-import { Tag } from 'twenty-ui/components';
-import { H2Title, IconLock } from 'twenty-ui/display';
-import { Section } from 'twenty-ui/layout';
+import { OrganizationAdornment } from '@/settings/enterprise/components/OrganizationAdornment';
+import { Section } from 'twenty-ui/components/layout';
 
 export const SettingsAiUsageTab = () => {
   const currentWorkspace = useAtomStateValue(currentWorkspaceState);
@@ -37,32 +36,25 @@ export const SettingsAiUsageTab = () => {
 
   if (!hasEnterpriseAccess) {
     return (
-      <Section>
-        <H2Title
+      <Section.Root>
+        <Section.Header
           title={t`AI Usage`}
           description={t`Track AI consumption across your workspace.`}
-          adornment={
-            <Tag
-              text={t`Enterprise`}
-              color="transparent"
-              Icon={IconLock}
-              variant="border"
-            />
-          }
+          actions={<OrganizationAdornment />}
         />
         <SettingsEnterpriseFeatureGateCard
-          title={t`Enterprise feature`}
-          description={t`AI usage analytics is available with an Enterprise key.`}
+          title={t`Organization feature`}
+          description={t`AI usage analytics is available with an Organization key.`}
           buttonTitle={t`Activate`}
         />
-      </Section>
+      </Section.Root>
     );
   }
 
   if (!isClickHouseConfigured) {
     return (
-      <Section>
-        <H2Title
+      <Section.Root>
+        <Section.Header
           title={t`AI Usage`}
           description={t`Track AI consumption across your workspace.`}
         />
@@ -72,7 +64,7 @@ export const SettingsAiUsageTab = () => {
             value={t`AI usage analytics requires ClickHouse. Contact your administrator.`}
           />
         </SubscriptionInfoContainer>
-      </Section>
+      </Section.Root>
     );
   }
 
@@ -89,8 +81,8 @@ export const SettingsAiUsageTab = () => {
 
   if (!hasData) {
     return (
-      <Section>
-        <H2Title
+      <Section.Root>
+        <Section.Header
           title={t`AI Usage`}
           description={t`Track AI consumption across your workspace.`}
         />
@@ -100,7 +92,7 @@ export const SettingsAiUsageTab = () => {
             value={t`AI usage analytics will appear here once you start using AI features.`}
           />
         </SubscriptionInfoContainer>
-      </Section>
+      </Section.Root>
     );
   }
 

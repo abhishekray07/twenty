@@ -3,11 +3,11 @@ import { Trans, useLingui } from '@lingui/react/macro';
 import { type MessageChannel } from '@/accounts/types/MessageChannel';
 import { SettingsAccountsMessageChannelDetails } from '@/settings/accounts/components/SettingsAccountsMessageChannelDetails';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
-import { SubMenuTopBarContainer } from '@/ui/layout/page/components/SubMenuTopBarContainer';
+import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
-import { IconChevronRight, IconPlus } from 'twenty-ui/display';
-import { Button } from 'twenty-ui/input';
+import { IconChevronRight, IconPlus } from 'twenty-ui/icon';
+import { Button } from 'twenty-ui/primitives/input';
 
 type SettingsAccountsConfigurationStepEmailProps = {
   messageChannel: MessageChannel;
@@ -27,7 +27,7 @@ export const SettingsAccountsConfigurationStepEmail = ({
   const { t } = useLingui();
 
   return (
-    <SubMenuTopBarContainer
+    <SettingsPageLayout
       title={t`1. Email`}
       links={[
         {
@@ -45,24 +45,22 @@ export const SettingsAccountsConfigurationStepEmail = ({
       actionButton={
         hasNextStep ? (
           <Button
-            Icon={IconChevronRight}
-            title={t`Next`}
-            accent="blue"
-            size="small"
-            variant="secondary"
+            startIcon={<IconChevronRight />}
+            size="sm"
             onClick={onNext}
             disabled={isSubmitting}
-          />
+            variant="outline"
+            color="accent"
+          >{t`Next`}</Button>
         ) : (
           <Button
-            Icon={IconPlus}
-            title={t`Add account`}
-            accent="blue"
-            size="small"
-            variant="primary"
+            startIcon={<IconPlus />}
+            size="sm"
             onClick={onAddAccount}
             disabled={isSubmitting}
-          />
+            variant="solid"
+            color="accent"
+          >{t`Add account`}</Button>
         )
       }
     >
@@ -71,6 +69,6 @@ export const SettingsAccountsConfigurationStepEmail = ({
           messageChannel={messageChannel}
         />
       </SettingsPageContainer>
-    </SubMenuTopBarContainer>
+    </SettingsPageLayout>
   );
 };

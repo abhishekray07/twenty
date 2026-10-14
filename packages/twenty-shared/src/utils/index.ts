@@ -23,38 +23,65 @@ export { upsertIntoArrayOfObjectsComparingId } from './array/upsertIntoArrayOfOb
 export { upsertPropertiesOfItemIntoArrayOfObjectsComparingId } from './array/upsertPropertiesOfItemIntoArrayOfObjectsComparingId';
 export { assertUnreachable } from './assertUnreachable';
 export { base64UrlEncode } from './base64UrlEncode';
+export { isCallRecordingTranscriptStatusMarker } from './callRecording/isCallRecordingTranscriptStatusMarker';
+export { parseCallRecordingTranscriptEntries } from './callRecording/parseCallRecordingTranscriptEntries';
 export { conditionalAvailabilityParser } from './command-menu-items/conditionalAvailabilityParser';
 export { evaluateConditionalAvailabilityExpression } from './command-menu-items/evaluateConditionalAvailabilityExpression';
-export { interpolateCommandMenuItemTemplate } from './command-menu-items/interpolateCommandMenuItemTemplate';
 export { resolveObjectMetadataLabel } from './command-menu-items/resolveObjectMetadataLabel';
 export { safeGetNestedProperty } from './command-menu-items/safeGetNestedProperty';
 export { computeDiffBetweenObjects } from './compute-diff-between-objects';
+export { formatValueForCSV } from './csv/formatValueForCSV';
+export { sanitizeValueForCSVExport } from './csv/sanitizeValueForCSVExport';
+export { convertCurrencyAmountToCurrencyMicros } from './currency/convertCurrencyAmountToCurrencyMicros';
+export { convertCurrencyMicrosToCurrencyAmount } from './currency/convertCurrencyMicrosToCurrencyAmount';
+export {
+  NON_ISO_DATE_FORMATS,
+  ACCEPTED_DATE_FORMATS,
+  ACCEPTED_DATE_TIME_FORMATS,
+} from './date/dateInputFormats';
+export { getValidTimeZoneOrUndefined } from './date/getValidTimeZoneOrUndefined';
+export { isDateWithoutTime } from './date/isDateWithoutTime';
 export { isPlainDateAfter } from './date/isPlainDateAfter';
 export { isPlainDateBefore } from './date/isPlainDateBefore';
 export { isPlainDateBeforeOrEqual } from './date/isPlainDateBeforeOrEqual';
 export { isPlainDateInSameMonth } from './date/isPlainDateInSameMonth';
 export { isPlainDateInWeekend } from './date/isPlainDateInWeekend';
 export { isSamePlainDate } from './date/isSamePlainDate';
+export { parseToInstantOrThrow } from './date/parseToInstantOrThrow';
 export { parseToPlainDateOrThrow } from './date/parseToPlainDateOrThrow';
 export { sortPlainDate } from './date/sortPlainDate';
 export { turnJSDateToPlainDate } from './date/turnJSDateToPlainDate';
 export { turnPlainDateIntoUserTimeZoneInstantString } from './date/turnPlainDateIntoUserTimeZoneInstantString';
 export { turnPlainDateToShiftedDateInSystemTimeZone } from './date/turnPlainDateToShiftedDateInSystemTimeZone';
 export { deepMerge } from './deepMerge';
+export { canConnectedAccountPerformEmailOperation } from './email/canConnectedAccountPerformEmailOperation';
+export { formatEmailAddress } from './email/formatEmailAddress';
+export { getEmailProvidersForOperation } from './email/getEmailProvidersForOperation';
+export { getSendableEmailHandles } from './email/getSendableEmailHandles';
+export type { ParsedEmailAddress } from './email/parseEmailAddressList';
+export { parseEmailAddressList } from './email/parseEmailAddressList';
 export { CustomError } from './errors/CustomError';
 export { evalFromContext } from './evalFromContext';
+export { getEventLogRetentionInHours } from './event-logs/getEventLogRetentionInHours';
 export { extractAndSanitizeObjectStringFields } from './extractAndSanitizeObjectStringFields';
 export { computeMorphRelationGqlFieldName } from './fieldMetadata/compute-morph-relation-gql-field-name';
 export {
   computeRelationGqlFieldJoinColumnName,
   computeMorphRelationGqlFieldJoinColumnName,
 } from './fieldMetadata/compute-relation-gql-field-join-column-name';
+export { isCompositePropertySupportedInGroupBy } from './fieldMetadata/isCompositePropertySupportedInGroupBy';
 export { isFieldMetadataArrayKind } from './fieldMetadata/isFieldMetadataArrayKind';
 export { isFieldMetadataDateKind } from './fieldMetadata/isFieldMetadataDateKind';
 export { isFieldMetadataEligibleForFieldsWidget } from './fieldMetadata/isFieldMetadataEligibleForFieldsWidget';
+export { isFieldMetadataEligibleForRecordForm } from './fieldMetadata/isFieldMetadataEligibleForRecordForm';
+export { isFieldMetadataEnumKind } from './fieldMetadata/isFieldMetadataEnumKind';
 export { isFieldMetadataNumericKind } from './fieldMetadata/isFieldMetadataNumericKind';
 export { isFieldMetadataSelectKind } from './fieldMetadata/isFieldMetadataSelectKind';
+export { isFieldMetadataSupportedInGroupBy } from './fieldMetadata/isFieldMetadataSupportedInGroupBy';
 export { isFieldMetadataTextKind } from './fieldMetadata/isFieldMetadataTextKind';
+export { isMorphRelationHead } from './fieldMetadata/isMorphRelationHead';
+export { pickMorphGroupSurvivorOrThrow } from './fieldMetadata/pick-morph-group-survivor-or-throw';
+export { shouldExcludeFieldFromAgentToolSchema } from './fieldMetadata/shouldExcludeFieldFromAgentToolSchema';
 export { extractFolderPathFilenameAndTypeOrThrow } from './files/extractFolderPathFilenameAndTypeOrThrow.util';
 export { checkIfShouldComputeEmptinessFilter } from './filter/checkIfShouldComputeEmptinessFilter';
 export { computeGqlOperationFilterForEmails } from './filter/compute-record-gql-operation-filter/for-composite-field/computeGqlOperationFilterForEmails';
@@ -76,6 +103,7 @@ export {
   getNextPeriodStart,
 } from './filter/dates/utils/getNextPeriodStart';
 export { getPeriodStart } from './filter/dates/utils/getPeriodStart';
+export { isSubDayRelativeDateFilterUnit } from './filter/dates/utils/isSubDayRelativeDateFilterUnit';
 export { relativeDateFilterAmountSchema } from './filter/dates/utils/relativeDateFilterAmountSchema';
 export type { RelativeDateFilterDirection } from './filter/dates/utils/relativeDateFilterDirectionSchema';
 export { relativeDateFilterDirectionSchema } from './filter/dates/utils/relativeDateFilterDirectionSchema';
@@ -107,8 +135,10 @@ export { turnRecordFilterGroupsIntoGqlOperationFilter } from './filter/turnRecor
 export type { FieldShared } from './filter/turnRecordFilterIntoGqlOperationFilter';
 export { turnRecordFilterIntoRecordGqlOperationFilter } from './filter/turnRecordFilterIntoGqlOperationFilter';
 export { combineFilters } from './filter/utils/combineFilters';
+export { compareSelectOptionValues } from './filter/utils/compareSelectOptionValues';
 export { COMPOSITE_FIELD_FILTER_OPERANDS_MAP } from './filter/utils/compositeFieldFilterOperandsMap';
 export { convertViewFilterOperandToCoreOperand } from './filter/utils/convert-view-filter-operand-to-core-operand.util';
+export { convertLikePatternToRegexOrThrow } from './filter/utils/convertLikePatternToRegexOrThrow';
 export { convertViewFilterValueToString } from './filter/utils/convertViewFilterValueToString';
 export { createAnyFieldRecordFilterBaseProperties } from './filter/utils/createAnyFieldRecordFilterBaseProperties';
 export {
@@ -138,15 +168,36 @@ export { isMatchingStringFilter } from './filter/utils/isMatchingStringFilter';
 export { isMatchingTSVectorFilter } from './filter/utils/isMatchingTSVectorFilter';
 export { isMatchingUUIDFilter } from './filter/utils/isMatchingUUIDFilter';
 export { arrayOfStringsOrVariablesSchema } from './filter/utils/validation-schemas/arrayOfStringsOrVariablesSchema';
-export { arrayOfUuidOrVariableSchema } from './filter/utils/validation-schemas/arrayOfUuidsOrVariablesSchema';
+export {
+  strictArrayOfUuidOrVariableSchema,
+  arrayOfUuidOrVariableSchema,
+} from './filter/utils/validation-schemas/arrayOfUuidsOrVariablesSchema';
+export {
+  nonEmptyStringFilterValueSchema,
+  numericFilterValueSchema,
+  plainDateFilterValueSchema,
+  instantFilterValueSchema,
+  plainDateOrInstantFilterValueSchema,
+  booleanFilterValueSchema,
+  actorSourceFilterValueSchema,
+} from './filter/utils/validation-schemas/filterValueScalarSchemas';
+export {
+  FILTER_VALUE_SCHEMAS_MAP,
+  COMPOSITE_SUB_FIELD_VALUE_SCHEMAS,
+  FILTER_VALUE_FORMAT_HINTS,
+} from './filter/utils/validation-schemas/filterValueSchemasMap';
+export { getFilterValueSchema } from './filter/utils/validation-schemas/getFilterValueSchema';
+export type { FilterValueValidationIssue } from './filter/utils/validation-schemas/getFilterValueValidationIssue';
+export { getFilterValueValidationIssue } from './filter/utils/validation-schemas/getFilterValueValidationIssue';
 export {
   relationFilterValueSchemaObject,
   jsonRelationFilterValueSchema,
 } from './filter/utils/validation-schemas/jsonRelationFilterValueSchema';
+export { formatBytes } from './format/formatBytes';
 export { formatToShortNumber } from './format/formatToShortNumber';
 export { fromArrayToUniqueKeyRecord } from './from-array-to-unique-key-record.util';
 export { fromArrayToValuesByKeyRecord } from './fromArrayToValuesByKeyRecord.util';
-export { getURLSafely } from './getURLSafely';
+export { getUrlSafely } from './getUrlSafely';
 export {
   getNodeTypename,
   getConnectionTypename,
@@ -154,22 +205,31 @@ export {
   getGroupByConnectionTypename,
 } from './graphql/graphql-get-typename.util';
 export { getImageAbsoluteURI } from './image/getImageAbsoluteURI';
+export { getLinkFaviconUrl } from './image/getLinkFaviconUrl';
 export {
   sanitizeURL,
   getLogoUrlFromDomainName,
 } from './image/getLogoUrlFromDomainName';
 export { getUniqueConstraintsFields } from './indexMetadata/getUniqueConstraintsFields';
 export { isAutoSelectModelId } from './isAutoSelectModelId';
+export { isFieldValueRestricted } from './isFieldValueRestricted';
 export { fastDeepEqual } from './json/fast-deep-equal';
 export { getAppPath } from './navigation/getAppPath';
 export { getSettingsPath } from './navigation/getSettingsPath';
+export { getPageLayoutWidgetHeightBehavior } from './pageLayout/getPageLayoutWidgetHeightBehavior';
 export { parseJson } from './parseJson';
 export { removePropertiesFromRecord } from './removePropertiesFromRecord';
 export { removeUndefinedFields } from './removeUndefinedFields';
-export { resolveRichTextVariables } from './rich-text-variable-resolver';
 export { safeParseRelativeDateFilterJsonStringified } from './safeParseRelativeDateFilterJsonStringified';
 export { getGenericOperationName } from './sentry/getGenericOperationName';
 export { getHumanReadableNameFromCode } from './sentry/getHumanReadableNameFromCode';
+export { getEnabledAddressSubFields } from './sort/getEnabledAddressSubFields';
+export type { OrderByFieldMetadata } from './sort/getOrderByForFieldMetadataType';
+export { getOrderByForFieldMetadataType } from './sort/getOrderByForFieldMetadataType';
+export { getOrderByForRelationField } from './sort/getOrderByForRelationField';
+export { resolveAddressSortSubField } from './sort/resolveAddressSortSubField';
+export { resolvePrimaryFullNameSortSubField } from './sort/resolvePrimaryFullNameSortSubField';
+export { sortKeysDeeply } from './sortKeysDeeply';
 export { appendCopySuffix } from './strings/appendCopySuffix';
 export { camelToKebab } from './strings/camelToKebab';
 export { camelToSnakeCase } from './strings/camelToSnakeCase';
@@ -179,21 +239,68 @@ export { pascalCase } from './strings/pascalCase';
 export { pascalToKebab } from './strings/pascalToKebab';
 export { stringifySafely } from './strings/stringifySafely';
 export { uncapitalize } from './strings/uncapitalize';
+export { getSubdomainSlugFromDisplayName } from './subdomain/getSubdomainSlugFromDisplayName';
+export type { CanvasTheme } from './tiptap/canvas-theme';
+export { CANVAS_THEME_DEFAULTS } from './tiptap/canvas-theme';
+export { convertEmailBodyToEmailDocument } from './tiptap/convert-email-body-to-email-document';
+export { convertStringBodyToEmailDocument } from './tiptap/convert-string-body-to-email-document';
+export { convertTipTapBlocksToMarkdown } from './tiptap/convert-tiptap-blocks-to-markdown';
+export type { EmailDocumentMarkType } from './tiptap/email-document-mark-catalog';
+export {
+  EMAIL_DOCUMENT_MARK_CATALOG,
+  isEmailDocumentMarkType,
+} from './tiptap/email-document-mark-catalog';
+export type {
+  EmailDocumentNodeType,
+  RenderedEmailDocumentNodeType,
+} from './tiptap/email-document-node-catalog';
+export {
+  EMAIL_DOCUMENT_NODE_CATALOG,
+  isEmailDocumentNodeType,
+  isRenderedEmailDocumentNodeType,
+} from './tiptap/email-document-node-catalog';
+export type { EmailDocumentNode } from './tiptap/email-document-node';
+export { EMAIL_DOCUMENT_SCHEMA_VERSION } from './tiptap/email-document-schema-version';
+export type { EmailDocument } from './tiptap/email-document-schema';
+export { emailDocumentSchema } from './tiptap/email-document-schema';
+export type { EmailDocumentStringContext } from './tiptap/email-document-string-context';
+export { getFullHtmlEmailIfWholeBody } from './tiptap/get-full-html-email-if-whole-body';
+export { HTML_ELEMENT_NAMES } from './tiptap/html-element-names';
+export { isCanvasTheme } from './tiptap/is-canvas-theme';
+export { isEmailDocumentShape } from './tiptap/is-email-document-shape';
+export type { CampaignVariableDefinition } from './tiptap/list-campaign-variables-for-fields';
+export { listCampaignVariablesForFields } from './tiptap/list-campaign-variables-for-fields';
+export { looksLikeHtml } from './tiptap/looks-like-html';
+export {
+  parseEmailDocument,
+  parseCanonicalEmailDocument,
+} from './tiptap/parse-email-document';
+export {
+  isTipTapNode,
+  parseTipTapJsonDocument,
+  parseCanonicalTipTapJsonDocument,
+} from './tiptap/parse-tiptap-json-document';
+export { resolveCanvasTheme } from './tiptap/resolve-canvas-theme';
+export { TIPTAP_DOCUMENT_SCHEMA_VERSION } from './tiptap/tiptap-document-schema-version';
+export { tipTapDocumentToMarkdown } from './tiptap/tiptap-document-to-markdown';
+export type { TipTapDocument } from './tiptap/tiptap-document';
 export type {
   TipTapMarkType,
-  TipTapNodeType,
   LinkMarkAttributes,
   TipTapMark,
-} from './tiptap/tiptap-marks';
-export {
-  TIPTAP_MARK_TYPES,
-  TIPTAP_NODE_TYPES,
-  TIPTAP_MARKS_RENDER_ORDER,
-} from './tiptap/tiptap-marks';
+} from './tiptap/tiptap-mark-types';
+export { TIPTAP_MARK_TYPES } from './tiptap/tiptap-mark-types';
+export { TIPTAP_MARKS_RENDER_ORDER } from './tiptap/tiptap-marks-render-order';
+export type { TipTapNodeType } from './tiptap/tiptap-node-types';
+export { TIPTAP_NODE_TYPES } from './tiptap/tiptap-node-types';
+export type { TipTapNode } from './tiptap/tiptap-node';
+export { transformEmailDocumentStrings } from './tiptap/transform-email-document-strings';
 export type { StringPropertyKeys } from './trim-and-remove-duplicated-whitespaces-from-object-string-properties';
 export { trimAndRemoveDuplicatedWhitespacesFromObjectStringProperties } from './trim-and-remove-duplicated-whitespaces-from-object-string-properties';
 export { trimAndRemoveDuplicatedWhitespacesFromString } from './trim-and-remove-duplicated-whitespaces-from-string';
+export { typedObjectEntries } from './typed-object-entries';
 export { isMetadataGqlOperationSignature } from './typeguard/isMetadataGqlOperationSignature';
+export { isNonEmptyString } from './typeguard/isNonEmptyString';
 export { isPlainObject } from './typeguard/isPlainObject';
 export { isRecordGqlOperationSignature } from './typeguard/isRecordGqlOperationSignature';
 export { throwIfNotDefined } from './typeguard/throwIfNotDefined';
@@ -202,26 +309,60 @@ export { absoluteUrlSchema } from './url/absoluteUrlSchema';
 export { buildSignedPath } from './url/buildSignedPath';
 export { ensureAbsoluteUrl } from './url/ensureAbsoluteUrl';
 export { getAbsoluteUrlOrThrow } from './url/getAbsoluteUrlOrThrow';
+export { getLinkUrlNormalizer } from './url/getLinkUrlNormalizer';
 export { getSafeUrl } from './url/getSafeUrl';
 export { getUrlHostnameOrThrow } from './url/getUrlHostnameOrThrow';
+export { isAbsoluteUrl } from './url/isAbsoluteUrl';
+export { isSafeInternalPath } from './url/isSafeInternalPath';
 export { isSafeUrl } from './url/isSafeUrl';
+export { isValidDomain } from './url/isValidDomain';
 export { isValidHostname } from './url/isValidHostname';
 export { isValidUrl } from './url/isValidUrl';
+export { normalizeAllowedIframeOrigin } from './url/normalizeAllowedIframeOrigin';
+export { normalizeDomain } from './url/normalizeDomain';
 export { normalizeUrl } from './url/normalizeUrl';
 export { normalizeUrlOrigin } from './url/normalizeUrlOrigin';
 export { safeDecodeURIComponent } from './url/safeDecodeURIComponent';
 export { uuidToBase36 } from './uuidToBase36';
+export { buildValidationRuleEvaluationContext } from './validation-rule/buildValidationRuleEvaluationContext';
+export { compileValidationRuleExpression } from './validation-rule/compileValidationRuleExpression';
+export { createValidationRuleEvaluator } from './validation-rule/createValidationRuleEvaluator';
+export { evaluateValidationRuleExpression } from './validation-rule/evaluateValidationRuleExpression';
+export { hasValidationRuleBracketAccess } from './validation-rule/hasValidationRuleBracketAccess';
+export { isValidationRuleReservedName } from './validation-rule/isValidationRuleReservedName';
+export { isValidationRuleValueDefined } from './validation-rule/isValidationRuleValueDefined';
+export { isValidationRuleValueEmpty } from './validation-rule/isValidationRuleValueEmpty';
+export { parseValidationRuleExpression } from './validation-rule/parseValidationRuleExpression';
+export { resolveValidationRuleIdentifierPath } from './validation-rule/resolveValidationRuleIdentifierPath';
+export { tokenizeValidationRuleExpression } from './validation-rule/tokenizeValidationRuleExpression';
+export { validationRuleParser } from './validation-rule/validationRuleParser';
+export {
+  validationRuleNullPlaceholders,
+  validationRuleCompositeFieldTypeByValue,
+} from './validation-rule/validationRuleValueRegistry';
 export { assertIsDefinedOrThrow } from './validation/assertIsDefinedOrThrow';
+export { emailSchema } from './validation/emailSchema';
+export { escapeForIlike } from './validation/escapeForIlike';
 export { isDefined } from './validation/isDefined';
 export { isEmptyObject } from './validation/isEmptyObject';
+export { isImageIdentifierFieldMetadataType } from './validation/isImageIdentifierFieldMetadataType';
 export { isLabelIdentifierFieldMetadataTypes } from './validation/isLabelIdentifierFieldMetadataTypes';
 export type { SearchableFieldType } from './validation/isSearchableFieldType';
 export { isSearchableFieldType } from './validation/isSearchableFieldType';
+export { isSupportedViewGroupLoadLimit } from './validation/isSupportedViewGroupLoadLimit';
+export { isTagColor } from './validation/isTagColor';
 export { isValidLocale } from './validation/isValidLocale';
 export { isValidTwentySubdomain } from './validation/isValidTwentySubdomain';
 export { isValidUuid } from './validation/isValidUuid';
 export { isValidVariable } from './validation/isValidVariable';
 export { normalizeLocale } from './validation/normalizeLocale';
+export { normalizePartner } from './validation/normalizePartner';
 export { getCountryCodesForCallingCode } from './validation/phones-value/getCountryCodesForCallingCode';
 export { isValidCountryCode } from './validation/phones-value/isValidCountryCode';
-export { resolveInput } from './variable-resolver';
+export {
+  isVariableReference,
+  resolveInput,
+  resolveStringTemplate,
+} from './variable-resolver';
+export { getViewLayoutFromViewType } from './views/getViewLayoutFromViewType';
+export { isWidgetViewType } from './views/isWidgetViewType';

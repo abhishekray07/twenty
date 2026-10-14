@@ -8,7 +8,7 @@ import { buildBaseManifest } from 'test/integration/metadata/suites/application/
 import { cleanupApplicationAndAppRegistration } from 'test/integration/metadata/suites/application/utils/cleanup-application-and-app-registration.util';
 import { setupApplicationForSync } from 'test/integration/metadata/suites/application/utils/setup-application-for-sync.util';
 import { syncApplication } from 'test/integration/metadata/suites/application/utils/sync-application.util';
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 import { buildSecretEncryptionServiceFromEnv } from 'test/integration/upgrade/utils/build-secret-encryption-service.util';
 
 import { SECRET_APPLICATION_VARIABLE_MASK } from 'src/engine/core-modules/application/application-variable/constants/secret-application-variable-mask.constant';
@@ -17,9 +17,10 @@ import { type SecretEncryptionService } from 'src/engine/core-modules/secret-enc
 
 const V2_ENVELOPE_REGEX = /^enc:v2:[0-9a-f]{8}:[A-Za-z0-9+/=]+$/;
 const CONSTRAINT_NAME = 'CHK_applicationVariable_value_encrypted';
-const CONSTRAINT_EXPR = `"isSecret" = false OR "value" = '' OR "value" LIKE 'enc:v2:%'`;
+const CONSTRAINT_EXPR = `"value" LIKE 'enc:v2:%'`;
 
 const V2_VARIABLE_KEY = 'TEST_V2_SECRET';
+const V2_NON_SECRET_VARIABLE_KEY = 'TEST_V2_NON_SECRET';
 const LEGACY_VARIABLE_KEY = 'TEST_LEGACY_CTR_SECRET';
 
 const buildExpectedMask = (plaintext: string): string => {
@@ -63,6 +64,10 @@ describe('ApplicationVariable encryption (integration)', () => {
                 universalIdentifier: crypto.randomUUID(),
                 isSecret: true,
               },
+              [V2_NON_SECRET_VARIABLE_KEY]: {
+                universalIdentifier: crypto.randomUUID(),
+                isSecret: false,
+              },
               [LEGACY_VARIABLE_KEY]: {
                 universalIdentifier: crypto.randomUUID(),
                 isSecret: true,
@@ -76,7 +81,7 @@ describe('ApplicationVariable encryption (integration)', () => {
       expectToFail: false,
     });
 
-    const findResponse = await makeMetadataAPIRequest({
+    const findResponse = await makeMetadataApiRequest({
       query: gql`
         query FindAppForEncryptionTestSetup($universalIdentifier: UUID!) {
           findOneApplication(universalIdentifier: $universalIdentifier) {
@@ -107,7 +112,7 @@ describe('ApplicationVariable encryption (integration)', () => {
   it('encrypts the value on the API write path, persists a v2 envelope in Postgres, and returns the masked decrypted value via the API read path', async () => {
     const plaintext = 'v2-encrypted-application-variable-secret-value-here';
 
-    const updateResponse = await makeMetadataAPIRequest({
+    const updateResponse = await makeMetadataApiRequest({
       query: gql`
         mutation UpdateAppVariableForEncryptionTest(
           $key: String!
@@ -144,7 +149,7 @@ describe('ApplicationVariable encryption (integration)', () => {
     );
     expect(dbRow.value).toMatch(V2_ENVELOPE_REGEX);
 
-    const findResponse = await makeMetadataAPIRequest({
+    const findResponse = await makeMetadataApiRequest({
       query: gql`
         query FindAppVariablesForEncryptionTest($id: UUID!) {
           findOneApplication(id: $id) {
@@ -171,7 +176,74 @@ describe('ApplicationVariable encryption (integration)', () => {
     expect(variable.value).toBe(buildExpectedMask(plaintext));
   });
 
-  describe('legacy CTR fallback', () => {
+  it('encrypts a non-secret variable on write, persists a v2 envelope, and returns the full decrypted plaintext (not masked) on read', async () => {
+    const plaintext = 'https://public-url.example.com/webhook';
+
+    const updateResponse = await makeMetadataApiRequest({
+      query: gql`
+        mutation UpdateNonSecretAppVarForEncryptionTest(
+          $key: String!
+          $value: String!
+          $applicationId: UUID!
+        ) {
+          updateOneApplicationVariable(
+            key: $key
+            value: $value
+            applicationId: $applicationId
+          )
+        }
+      `,
+      variables: {
+        key: V2_NON_SECRET_VARIABLE_KEY,
+        value: plaintext,
+        applicationId,
+      },
+    });
+
+    expect(updateResponse.body.errors).toBeUndefined();
+    expect(updateResponse.body.data.updateOneApplicationVariable).toBe(true);
+
+    const [dbRow] = await dataSource.query(
+      `SELECT "value"
+         FROM "core"."applicationVariable"
+        WHERE "applicationId" = $1 AND "key" = $2`,
+      [applicationId, V2_NON_SECRET_VARIABLE_KEY],
+    );
+
+    expect(dbRow.value).not.toContain(plaintext);
+    expect(dbRow.value.startsWith(SECRET_ENCRYPTION_ENVELOPE_V2_PREFIX)).toBe(
+      true,
+    );
+    expect(dbRow.value).toMatch(V2_ENVELOPE_REGEX);
+
+    const findResponse = await makeMetadataApiRequest({
+      query: gql`
+        query FindNonSecretAppVarsForEncryptionTest($id: UUID!) {
+          findOneApplication(id: $id) {
+            applicationVariables {
+              key
+              value
+              isSecret
+            }
+          }
+        }
+      `,
+      variables: { id: applicationId },
+    });
+
+    expect(findResponse.body.errors).toBeUndefined();
+
+    const variable =
+      findResponse.body.data.findOneApplication.applicationVariables.find(
+        (v: { key: string }) => v.key === V2_NON_SECRET_VARIABLE_KEY,
+      );
+
+    expect(variable).toBeDefined();
+    expect(variable.isSecret).toBe(false);
+    expect(variable.value).toBe(plaintext);
+  });
+
+  describe('legacy CTR values are rejected at runtime', () => {
     beforeAll(async () => {
       await dataSource.query(
         `ALTER TABLE core."applicationVariable"
@@ -181,8 +253,7 @@ describe('ApplicationVariable encryption (integration)', () => {
 
     afterAll(async () => {
       await dataSource.query(
-        `UPDATE core."applicationVariable"
-              SET "value" = ''
+        `DELETE FROM core."applicationVariable"
             WHERE "applicationId" = $1 AND "key" = $2`,
         [applicationId, LEGACY_VARIABLE_KEY],
       );
@@ -192,7 +263,7 @@ describe('ApplicationVariable encryption (integration)', () => {
       );
     });
 
-    it('decrypts a legacy CTR-encrypted value through the live API read path', async () => {
+    it('rejects a legacy CTR-encrypted value through the live API read path', async () => {
       const plaintext = 'legacy-ctr-application-variable-secret-value-here';
 
       await dataSource.query(
@@ -206,7 +277,7 @@ describe('ApplicationVariable encryption (integration)', () => {
         ],
       );
 
-      const findResponse = await makeMetadataAPIRequest({
+      const findResponse = await makeMetadataApiRequest({
         query: gql`
           query FindLegacyCtrAppVariablesForEncryptionTest($id: UUID!) {
             findOneApplication(id: $id) {
@@ -221,16 +292,8 @@ describe('ApplicationVariable encryption (integration)', () => {
         variables: { id: applicationId },
       });
 
-      expect(findResponse.body.errors).toBeUndefined();
-
-      const variable =
-        findResponse.body.data.findOneApplication.applicationVariables.find(
-          (v: { key: string }) => v.key === LEGACY_VARIABLE_KEY,
-        );
-
-      expect(variable).toBeDefined();
-      expect(variable.isSecret).toBe(true);
-      expect(variable.value).toBe(buildExpectedMask(plaintext));
+      expect(findResponse.body.errors).toBeDefined();
+      expect(findResponse.body.errors[0].message).toContain('enc:v2 envelope');
     });
   });
 });

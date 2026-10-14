@@ -1,8 +1,11 @@
 import { useRedirect } from '@/domain-manager/hooks/useRedirect';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { getToastOptionsFromError } from '@/error-handler/utils/getToastOptionsFromError';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { useMutation } from '@apollo/client/react';
 import { t } from '@lingui/core/macro';
 import { useState } from 'react';
-import { useMutation } from '@apollo/client/react';
+import { isDefined } from 'twenty-shared/utils';
+import { useToast } from 'twenty-ui/components/feedback';
 import {
   type BillingPlanKey,
   type SubscriptionInterval,
@@ -22,7 +25,7 @@ export const useHandleCheckoutSession = ({
 }) => {
   const { redirect } = useRedirect();
 
-  const { enqueueErrorSnackBar } = useSnackBar();
+  const { enqueueToast } = useToast();
 
   const [checkoutSession] = useMutation(CheckoutSessionDocument);
 
@@ -30,22 +33,39 @@ export const useHandleCheckoutSession = ({
 
   const handleCheckoutSession = async () => {
     setIsSubmitting(true);
-    const { data } = await checkoutSession({
-      variables: {
-        recurringInterval,
-        successUrlPath,
-        plan,
-        requirePaymentMethod,
-      },
-    });
-    setIsSubmitting(false);
-    if (!data?.checkoutSession.url) {
-      enqueueErrorSnackBar({
-        message: t`Checkout session error. Please retry or contact Twenty team`,
+    try {
+      const { data } = await checkoutSession({
+        variables: {
+          recurringInterval,
+          successUrlPath,
+          plan,
+          requirePaymentMethod,
+        },
       });
-      return;
+      if (!data?.checkoutSession.url) {
+        enqueueToast({
+          status: 'error',
+          children: t`Checkout session error. Please retry or contact Twenty team`,
+        });
+        return;
+      }
+      redirect(data.checkoutSession.url);
+    } catch (error) {
+      const toastOptions =
+        CombinedGraphQLErrors.is(error) &&
+        isDefined(error.errors[0]?.extensions?.userFriendlyMessage)
+          ? getToastOptionsFromError({ error })
+          : undefined;
+
+      enqueueToast(
+        toastOptions ?? {
+          status: 'error',
+          children: t`Checkout session error. Please retry or contact Twenty team`,
+        },
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-    redirect(data.checkoutSession.url);
   };
   return { isSubmitting, handleCheckoutSession };
 };

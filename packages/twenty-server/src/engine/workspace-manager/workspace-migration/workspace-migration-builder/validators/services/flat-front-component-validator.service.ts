@@ -3,10 +3,12 @@ import { Injectable } from '@nestjs/common';
 import { msg, t } from '@lingui/core/macro';
 import { isNonEmptyString } from '@sniptt/guards';
 import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
+import { FileFolder } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
-import { isSafeRelativePath } from 'src/engine/core-modules/file-storage/utils/is-safe-relative-path.util';
+import { validateFilePath } from 'src/engine/core-modules/file-storage/utils/validate-file-path.util';
 import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
+import { validateFrontComponentUniversalWidgetAvailability } from 'src/engine/metadata-modules/flat-front-component/validators/utils/validate-front-component-universal-widget-availability.util';
 import { FrontComponentExceptionCode } from 'src/engine/metadata-modules/front-component/front-component.exception';
 import { type FailedFlatEntityValidation } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/types/failed-flat-entity-validation.type';
 import { getEmptyFlatEntityValidationError } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/utils/get-flat-entity-validation-error.util';
@@ -17,6 +19,9 @@ import { type UniversalFlatEntityValidationArgs } from 'src/engine/workspace-man
 export class FlatFrontComponentValidatorService {
   public validateFlatFrontComponentCreation({
     flatEntityToValidate: flatFrontComponent,
+    optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
+      flatObjectMetadataMaps,
+    },
   }: UniversalFlatEntityValidationArgs<
     typeof ALL_METADATA_NAME.frontComponent
   >): FailedFlatEntityValidation<'frontComponent', 'create'> {
@@ -37,27 +42,43 @@ export class FlatFrontComponentValidatorService {
       });
     }
 
-    if (
-      isDefined(flatFrontComponent.builtComponentPath) &&
-      !isSafeRelativePath(flatFrontComponent.builtComponentPath)
-    ) {
-      validationResult.errors.push({
-        code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
-        message: t`Built component path contains unsafe characters`,
-        userFriendlyMessage: msg`Built component path contains unsafe characters`,
+    if (isDefined(flatFrontComponent.builtComponentPath)) {
+      const builtPathResult = validateFilePath({
+        resourcePath: flatFrontComponent.builtComponentPath,
+        fileFolder: FileFolder.BuiltFrontComponent,
       });
+
+      if (!builtPathResult.isValid) {
+        validationResult.errors.push({
+          code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
+          message: builtPathResult.error,
+          userFriendlyMessage: msg`Built component path is invalid`,
+        });
+      }
     }
 
-    if (
-      isDefined(flatFrontComponent.sourceComponentPath) &&
-      !isSafeRelativePath(flatFrontComponent.sourceComponentPath)
-    ) {
-      validationResult.errors.push({
-        code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
-        message: t`Source component path contains unsafe characters`,
-        userFriendlyMessage: msg`Source component path contains unsafe characters`,
+    if (isDefined(flatFrontComponent.sourceComponentPath)) {
+      const sourcePathResult = validateFilePath({
+        resourcePath: flatFrontComponent.sourceComponentPath,
+        fileFolder: FileFolder.Source,
       });
+
+      if (!sourcePathResult.isValid) {
+        validationResult.errors.push({
+          code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
+          message: sourcePathResult.error,
+          userFriendlyMessage: msg`Source component path is invalid`,
+        });
+      }
     }
+
+    validationResult.errors.push(
+      ...validateFrontComponentUniversalWidgetAvailability({
+        universalWidgetAvailability:
+          flatFrontComponent.universalWidgetAvailability,
+        flatObjectMetadataMaps,
+      }),
+    );
 
     return validationResult;
   }
@@ -102,6 +123,7 @@ export class FlatFrontComponentValidatorService {
     flatEntityUpdate,
     optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
       flatFrontComponentMaps: optimisticFlatFrontComponentMaps,
+      flatObjectMetadataMaps,
     },
   }: FlatEntityUpdateValidationArgs<
     typeof ALL_METADATA_NAME.frontComponent
@@ -129,26 +151,44 @@ export class FlatFrontComponentValidatorService {
       return validationResult;
     }
 
-    if (
-      isDefined(flatEntityUpdate.builtComponentPath) &&
-      !isSafeRelativePath(flatEntityUpdate.builtComponentPath)
-    ) {
-      validationResult.errors.push({
-        code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
-        message: t`Built component path contains unsafe characters`,
-        userFriendlyMessage: msg`Built component path contains unsafe characters`,
+    if (isDefined(flatEntityUpdate.builtComponentPath)) {
+      const builtPathResult = validateFilePath({
+        resourcePath: flatEntityUpdate.builtComponentPath,
+        fileFolder: FileFolder.BuiltFrontComponent,
       });
+
+      if (!builtPathResult.isValid) {
+        validationResult.errors.push({
+          code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
+          message: builtPathResult.error,
+          userFriendlyMessage: msg`Built component path is invalid`,
+        });
+      }
     }
 
-    if (
-      isDefined(flatEntityUpdate.sourceComponentPath) &&
-      !isSafeRelativePath(flatEntityUpdate.sourceComponentPath)
-    ) {
-      validationResult.errors.push({
-        code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
-        message: t`Source component path contains unsafe characters`,
-        userFriendlyMessage: msg`Source component path contains unsafe characters`,
+    if (isDefined(flatEntityUpdate.sourceComponentPath)) {
+      const sourcePathResult = validateFilePath({
+        resourcePath: flatEntityUpdate.sourceComponentPath,
+        fileFolder: FileFolder.Source,
       });
+
+      if (!sourcePathResult.isValid) {
+        validationResult.errors.push({
+          code: FrontComponentExceptionCode.INVALID_FRONT_COMPONENT_INPUT,
+          message: sourcePathResult.error,
+          userFriendlyMessage: msg`Source component path is invalid`,
+        });
+      }
+    }
+
+    if (isDefined(flatEntityUpdate.universalWidgetAvailability)) {
+      validationResult.errors.push(
+        ...validateFrontComponentUniversalWidgetAvailability({
+          universalWidgetAvailability:
+            flatEntityUpdate.universalWidgetAvailability,
+          flatObjectMetadataMaps,
+        }),
+      );
     }
 
     return validationResult;

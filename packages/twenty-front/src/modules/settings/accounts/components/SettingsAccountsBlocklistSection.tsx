@@ -1,17 +1,16 @@
 import { type BlocklistItem } from '@/accounts/types/BlocklistItem';
-import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
-import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
+import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
+import { useCreateManyRecords } from '@/object-record/hooks/useCreateManyRecords';
 import { useDeleteOneRecord } from '@/object-record/hooks/useDeleteOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { SettingsAccountsBlocklistInput } from '@/settings/accounts/components/SettingsAccountsBlocklistInput';
 import { SettingsAccountsBlocklistTable } from '@/settings/accounts/components/SettingsAccountsBlocklistTable';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useLingui } from '@lingui/react/macro';
+import { BlocklistScope, CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { H2Title } from 'twenty-ui/display';
-import { Section } from 'twenty-ui/layout';
+import { Section } from 'twenty-ui/components/layout';
 
 export const SettingsAccountsBlocklistSection = () => {
   const { t } = useLingui();
@@ -34,8 +33,8 @@ export const SettingsAccountsBlocklistSection = () => {
     skip: !isDefined(currentWorkspaceMember),
   });
 
-  const { createOneRecord: createBlocklistItem } =
-    useCreateOneRecord<BlocklistItem>({
+  const { createManyRecords: createBlocklistItems } =
+    useCreateManyRecords<BlocklistItem>({
       objectNameSingular: CoreObjectNameSingular.Blocklist,
     });
 
@@ -47,16 +46,22 @@ export const SettingsAccountsBlocklistSection = () => {
     deleteBlocklistItem(id);
   };
 
-  const updateBlockedEmailList = (handle: string) => {
-    createBlocklistItem({
-      handle,
-      workspaceMemberId: currentWorkspaceMember?.id,
+  const updateBlockedEmailList = (handles: string[]) => {
+    if (!isDefined(currentWorkspaceMember)) return;
+    createBlocklistItems({
+      recordsToCreate: [...new Set(handles)].map((handle) => {
+        return {
+          handle,
+          scope: BlocklistScope.WORKSPACE_MEMBER,
+          workspaceMemberId: currentWorkspaceMember.id,
+        };
+      }),
     });
   };
 
   return (
-    <Section>
-      <H2Title
+    <Section.Root>
+      <Section.Header
         title={t`Blocklist`}
         description={
           isInternalMessagesImportEnabled
@@ -72,6 +77,6 @@ export const SettingsAccountsBlocklistSection = () => {
         blocklist={blocklist}
         handleBlockedEmailRemove={handleBlockedEmailRemove}
       />
-    </Section>
+    </Section.Root>
   );
 };

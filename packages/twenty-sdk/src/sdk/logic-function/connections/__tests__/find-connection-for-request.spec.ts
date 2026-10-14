@@ -10,11 +10,14 @@ const buildConnection = (
   providerName: 'linear',
   name: 'Linear #1',
   handle: 'octocat@example.com',
+  externalAccountId: null,
   visibility: 'user',
   userWorkspaceId: 'uws-me',
+  workspaceMemberId: 'wm-me',
   accessToken: 'token-fresh',
   scopes: ['read'],
   authFailedAt: null,
+  authFailedReason: null,
   ...overrides,
 });
 

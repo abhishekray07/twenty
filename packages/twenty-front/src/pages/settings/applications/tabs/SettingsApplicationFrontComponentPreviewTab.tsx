@@ -1,8 +1,10 @@
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { Suspense, lazy } from 'react';
-import { Section } from 'twenty-ui/layout';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Section } from 'twenty-ui/components/layout';
+import { themeCssVariables } from 'twenty-ui/theme';
+
+import { FrontComponentSkeletonLoader } from '@/front-components/components/FrontComponentSkeletonLoader';
 
 const FrontComponentRenderer = lazy(() =>
   import('@/front-components/components/FrontComponentRenderer').then(
@@ -55,7 +57,7 @@ export const SettingsApplicationFrontComponentPreviewTab = ({
   isHeadless,
 }: SettingsApplicationFrontComponentPreviewTabProps) => {
   return (
-    <Section>
+    <Section.Root>
       <StyledPreviewFrame>
         {isHeadless ? (
           <StyledHeadlessNotice>
@@ -64,12 +66,15 @@ export const SettingsApplicationFrontComponentPreviewTab = ({
           </StyledHeadlessNotice>
         ) : (
           <StyledRendererContainer>
-            <Suspense fallback={null}>
-              <FrontComponentRenderer frontComponentId={frontComponentId} />
+            <Suspense fallback={<FrontComponentSkeletonLoader />}>
+              <FrontComponentRenderer
+                frontComponentId={frontComponentId}
+                loadingFallback={<FrontComponentSkeletonLoader />}
+              />
             </Suspense>
           </StyledRendererContainer>
         )}
       </StyledPreviewFrame>
-    </Section>
+    </Section.Root>
   );
 };

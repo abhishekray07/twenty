@@ -1,15 +1,30 @@
 import { useListenToMetadataOperationBrowserEvent } from '@/browser-event/hooks/useListenToMetadataOperationBrowserEvent';
+import { useCleanMorphRelationsTargetingObjectMetadataId } from '@/metadata-store/hooks/useCleanMorphRelationsTargetingObjectMetadataId';
 import { useUpdateMetadataStoreDraft } from '@/metadata-store/hooks/useUpdateMetadataStoreDraft';
 import { type MetadataEntityKey } from '@/metadata-store/states/metadataStoreState';
+import { type FlatPageLayoutWidget } from '@/metadata-store/types/FlatPageLayoutWidget';
 import { type MetadataEntityTypeMap } from '@/metadata-store/types/MetadataEntityTypeMap';
+import { addTypenamesToFlatPageLayoutWidget } from '@/metadata-store/utils/addTypenamesToFlatPageLayoutWidget';
 import { mapAllMetadataNameToEntityKey } from '@/metadata-store/utils/mapAllMetadataNameToEntityKey';
 import { isDefined } from 'twenty-shared/utils';
 
 type AnyMetadataEntity = MetadataEntityTypeMap[MetadataEntityKey];
 
+const toMetadataStoreItem = (
+  entityKey: MetadataEntityKey,
+  record: Record<string, unknown>,
+): AnyMetadataEntity =>
+  entityKey === 'pageLayoutWidgets'
+    ? addTypenamesToFlatPageLayoutWidget(
+        record as unknown as FlatPageLayoutWidget,
+      )
+    : (record as unknown as AnyMetadataEntity);
+
 export const MetadataStoreSSEEffect = () => {
   const { addToDraft, removeFromDraft, applyChanges } =
     useUpdateMetadataStoreDraft();
+  const { cleanMorphRelations } =
+    useCleanMorphRelationsTargetingObjectMetadataId();
 
   useListenToMetadataOperationBrowserEvent({
     onMetadataOperationBrowserEvent: (eventDetail) => {
@@ -26,8 +41,10 @@ export const MetadataStoreSSEEffect = () => {
           addToDraft({
             key: entityKey,
             items: [
-              eventDetail.operation
-                .createdRecord as unknown as AnyMetadataEntity,
+              toMetadataStoreItem(
+                entityKey,
+                eventDetail.operation.createdRecord,
+              ),
             ],
             collectionHash,
           });
@@ -37,8 +54,10 @@ export const MetadataStoreSSEEffect = () => {
           addToDraft({
             key: entityKey,
             items: [
-              eventDetail.operation
-                .updatedRecord as unknown as AnyMetadataEntity,
+              toMetadataStoreItem(
+                entityKey,
+                eventDetail.operation.updatedRecord,
+              ),
             ],
             collectionHash,
           });
@@ -50,6 +69,10 @@ export const MetadataStoreSSEEffect = () => {
             itemIds: [eventDetail.operation.deletedRecordId],
             collectionHash,
           });
+
+          if (entityKey === 'objectMetadataItems') {
+            cleanMorphRelations(eventDetail.operation.deletedRecordId);
+          }
           break;
         }
       }

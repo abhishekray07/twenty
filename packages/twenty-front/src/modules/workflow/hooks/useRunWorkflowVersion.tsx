@@ -1,3 +1,4 @@
+import { RunCoreWorkflowVersionDocument } from '~/generated/graphql';
 import { triggerCreateRecordsOptimisticEffect } from '@/apollo/optimistic-effect/utils/triggerCreateRecordsOptimisticEffect';
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { useOpenRecordInSidePanel } from '@/side-panel/hooks/useOpenRecordInSidePanel';
@@ -15,22 +16,22 @@ import { useUpsertRecordsInStore } from '@/object-record/record-store/hooks/useU
 import { recordStoreFamilyState } from '@/object-record/record-store/states/recordStoreFamilyState';
 import { computeOptimisticCreateRecordBaseRecordInput } from '@/object-record/utils/computeOptimisticCreateRecordBaseRecordInput';
 import { computeOptimisticRecordFromInput } from '@/object-record/utils/computeOptimisticRecordFromInput';
-import { RUN_WORKFLOW_VERSION } from '@/workflow/graphql/mutations/runWorkflowVersion';
+import { useChangeQueryListenState } from '@/sse-db-event/hooks/useChangeQueryListenState';
+import { getWorkflowRunSseQueryId } from '@/workflow/utils/getWorkflowRunSseQueryId';
 import { type WorkflowRun } from '@/workflow/types/Workflow';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useCallback } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { isDefined } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
-import {
-  type RunWorkflowVersionMutation,
-  type RunWorkflowVersionMutationVariables,
-} from '~/generated/graphql';
 import { useStore } from 'jotai';
 
 export const useRunWorkflowVersion = () => {
   const store = useStore();
   const apolloCoreClient = useApolloCoreClient();
+  const [mutateCore] = useMutation(RunCoreWorkflowVersionDocument, {
+    client: apolloCoreClient,
+  });
   const { upsertRecordsInStore } = useUpsertRecordsInStore();
 
   const { objectMetadataItem } = useObjectMetadataItem({
@@ -44,13 +45,6 @@ export const useRunWorkflowVersion = () => {
   });
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
 
-  const [mutate] = useMutation<
-    RunWorkflowVersionMutation,
-    RunWorkflowVersionMutationVariables
-  >(RUN_WORKFLOW_VERSION, {
-    client: apolloCoreClient,
-  });
-
   const computedRecordGqlFields = useGenerateDepthRecordGqlFieldsFromObject({
     objectNameSingular: CoreObjectNameSingular.WorkflowRun,
     depth: 1,
@@ -63,6 +57,7 @@ export const useRunWorkflowVersion = () => {
     });
 
   const { openRecordInSidePanel } = useOpenRecordInSidePanel();
+  const { changeQueryIdListenState } = useChangeQueryListenState();
 
   const setRecordInStore = useCallback(
     (workflowRun: WorkflowRun) => {
@@ -78,15 +73,15 @@ export const useRunWorkflowVersion = () => {
   }: {
     workflowId: string;
     workflowVersionId: string;
-    payload?: Record<string, any>;
+    payload?: Record<string, unknown>;
   }) => {
     const workflowRunId = v4();
 
     const recordInput: Partial<WorkflowRun> = {
       name: '#0',
       status: 'NOT_STARTED',
-      workflowVersionId,
-      workflowId,
+      coreWorkflowVersionId: workflowVersionId,
+      coreWorkflowId: workflowId,
       createdAt: new Date().toISOString(),
     };
 
@@ -137,9 +132,30 @@ export const useRunWorkflowVersion = () => {
 
     setRecordInStore(recordCreatedInCache);
 
-    await mutate({
-      variables: { input: { workflowVersionId, workflowRunId, payload } },
-    });
+    const sseQueryId = getWorkflowRunSseQueryId(workflowRunId);
+    const sseOperationSignature = {
+      objectNameSingular: CoreObjectNameSingular.WorkflowRun,
+      variables: {
+        filter: { id: { eq: workflowRunId } },
+      },
+    };
+
+    changeQueryIdListenState(true, sseQueryId, sseOperationSignature);
+
+    try {
+      await mutateCore({
+        variables: {
+          input: {
+            coreWorkflowVersionId: workflowVersionId,
+            workflowRunId,
+            payload,
+          },
+        },
+      });
+    } catch (error) {
+      changeQueryIdListenState(false, sseQueryId, sseOperationSignature);
+      throw error;
+    }
 
     openRecordInSidePanel({
       objectNameSingular: CoreObjectNameSingular.WorkflowRun,

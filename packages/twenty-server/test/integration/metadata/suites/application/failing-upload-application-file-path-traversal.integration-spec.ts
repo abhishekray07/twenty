@@ -11,6 +11,12 @@ import { v4 as uuidv4 } from 'uuid';
 const TEST_APP_ID = uuidv4();
 const UNKNOWN_APP_ID = uuidv4();
 
+const normalizeMessage = (message: string) =>
+  message.replace(
+    new RegExp(UNKNOWN_APP_ID, 'g'),
+    '<applicationUniversalIdentifier>',
+  );
+
 type TestContext = {
   applicationUniversalIdentifier: string;
   fileFolder: string;
@@ -84,6 +90,58 @@ const FAILING_TEST_CASES: EachTestingContext<TestContext>[] = [
       filePath: 'src/components/legit.mjs',
     },
   },
+  {
+    title: 'when filePath is a folder path without extension (bare UUID)',
+    context: {
+      applicationUniversalIdentifier: TEST_APP_ID,
+      fileFolder: 'BuiltFrontComponent',
+      filePath: '8b2df3cc-23ad-4e1b-87fd-f880d4cefd58',
+    },
+  },
+  {
+    title: 'when filePath is a nested folder path without extension',
+    context: {
+      applicationUniversalIdentifier: TEST_APP_ID,
+      fileFolder: 'Source',
+      filePath: 'src/logic-functions/my-handler',
+    },
+  },
+  {
+    title:
+      'when filePath has an invalid extension for BuiltFrontComponent (.js instead of .mjs)',
+    context: {
+      applicationUniversalIdentifier: TEST_APP_ID,
+      fileFolder: 'BuiltFrontComponent',
+      filePath: 'src/components/component.js',
+    },
+  },
+  {
+    title:
+      'when filePath has an invalid extension for BuiltLogicFunction (.html)',
+    context: {
+      applicationUniversalIdentifier: TEST_APP_ID,
+      fileFolder: 'BuiltLogicFunction',
+      filePath: 'src/handlers/handler.html',
+    },
+  },
+  {
+    title:
+      'when filePath has an invalid extension for Source (.js instead of .ts)',
+    context: {
+      applicationUniversalIdentifier: TEST_APP_ID,
+      fileFolder: 'Source',
+      filePath: 'src/index.js',
+    },
+  },
+  {
+    title:
+      'when filePath has an invalid extension for Dependencies (.sh instead of .json/.lock)',
+    context: {
+      applicationUniversalIdentifier: TEST_APP_ID,
+      fileFolder: 'Dependencies',
+      filePath: 'install.sh',
+    },
+  },
 ];
 
 describe('Upload application file should fail', () => {
@@ -119,7 +177,7 @@ describe('Upload application file should fail', () => {
 
       jest.useFakeTimers();
 
-      expectOneNotInternalServerErrorSnapshot({ errors });
+      expectOneNotInternalServerErrorSnapshot({ errors, normalizeMessage });
     },
     60000,
   );

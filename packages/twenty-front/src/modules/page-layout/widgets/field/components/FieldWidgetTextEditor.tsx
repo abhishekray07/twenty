@@ -2,20 +2,21 @@ import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/Enriche
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { useIsRecordFieldReadOnly } from '@/object-record/read-only/hooks/useIsRecordFieldReadOnly';
+import { useRecordSeededDraft } from '@/object-record/record-seeded-draft/hooks/useRecordSeededDraft';
 import { isFieldTextValue } from '@/object-record/record-field/ui/types/guards/isFieldTextValue';
 import { recordStoreFamilySelector } from '@/object-record/record-store/states/selectors/recordStoreFamilySelector';
 import { TextArea } from '@/ui/input/components/TextArea';
 import { useAtomFamilySelectorState } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorState';
 import { styled } from '@linaria/react';
-import { useCallback, useEffect } from 'react';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { useDebouncedCallback } from 'use-debounce';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 const StyledContainer = styled.div`
   box-sizing: border-box;
   padding: ${themeCssVariables.spacing[4]};
   width: 100%;
 `;
+
+const PERSIST_DEBOUNCE_MS = 300;
 
 type FieldWidgetTextEditorProps = {
   fieldMetadataItem: FieldMetadataItem;
@@ -46,50 +47,46 @@ export const FieldWidgetTextEditor = ({
   });
 
   const textAreaId = `field-widget-text-editor-${recordId}-${fieldName}`;
+  const fieldTextValue = isFieldTextValue(fieldValue) ? fieldValue : '';
 
-  const persistTextDebounced = useDebouncedCallback((text: string) => {
-    if (isRecordFieldReadOnly === true) {
-      return;
-    }
-
-    updateOneRecord({
-      objectNameSingular: objectMetadataItem.nameSingular,
-      idToUpdate: recordId,
-      updateOneRecordInput: {
-        [fieldName]: text,
-      },
-    });
-  }, 300);
-
-  useEffect(() => () => persistTextDebounced.flush(), [persistTextDebounced]);
-
-  const handleChange = useCallback(
-    (text: string) => {
+  const { draft, updateDraft, flush } = useRecordSeededDraft({
+    upstreamDraft: { text: fieldTextValue },
+    persistDebounceMs: PERSIST_DEBOUNCE_MS,
+    resetKey: `${recordId}-${fieldMetadataItem.id}`,
+    onPersist: ({ text }) => {
       if (isRecordFieldReadOnly === true) {
         return;
       }
 
       setFieldValue(text);
 
-      persistTextDebounced(text);
+      updateOneRecord({
+        objectNameSingular: objectMetadataItem.nameSingular,
+        idToUpdate: recordId,
+        updateOneRecordInput: {
+          [fieldName]: text,
+        },
+      });
     },
-    [isRecordFieldReadOnly, persistTextDebounced, setFieldValue],
-  );
+  });
 
-  const handleBlur = useCallback(() => {
-    persistTextDebounced.flush();
-  }, [persistTextDebounced]);
+  const handleChange = (text: string) => {
+    if (isRecordFieldReadOnly === true) {
+      return;
+    }
 
-  const fieldTextValue = isFieldTextValue(fieldValue) ? fieldValue : '';
+    updateDraft({ text });
+    setFieldValue(text);
+  };
 
   return (
     <StyledContainer>
       <TextArea
         textAreaId={textAreaId}
-        value={fieldTextValue}
+        value={draft.text}
         readOnly={isRecordFieldReadOnly}
         onChange={handleChange}
-        onBlur={handleBlur}
+        onBlur={() => flush()}
         variant="transparent"
       />
     </StyledContainer>

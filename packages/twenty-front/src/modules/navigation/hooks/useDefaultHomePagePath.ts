@@ -1,10 +1,16 @@
 import { currentUserState } from '@/auth/states/currentUserState';
 import { metadataStoreState } from '@/metadata-store/states/metadataStoreState';
-import { lastVisitedObjectMetadataItemIdState } from '@/navigation/states/lastVisitedObjectMetadataItemIdState';
+import { metadataStoreStatusFamilySelector } from '@/metadata-store/states/metadataStoreStatusFamilySelector';
+import { useNavigationMenuItemSectionItems } from '@/navigation-menu-item/display/hooks/useNavigationMenuItemSectionItems';
 import { type ObjectPathInfo } from '@/navigation/types/ObjectPathInfo';
+import { getFirstNavigationMenuItemLink } from '@/navigation/utils/getFirstNavigationMenuItemLink';
+import { computeObjectViewTargetIds } from '@/views/utils/computeObjectViewTargetIds';
 import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
+import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { filterReadableActiveObjectMetadataItems } from '@/object-metadata/utils/filterReadableActiveObjectMetadataItems';
 import { useObjectPermissions } from '@/object-record/hooks/useObjectPermissions';
+import { useIsMobile } from 'twenty-ui/utilities';
+import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorValue';
 import { useAtomFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilyStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { viewsSelector } from '@/views/states/selectors/viewsSelector';
@@ -12,19 +18,27 @@ import isEmpty from 'lodash.isempty';
 import { useCallback, useMemo } from 'react';
 import { AppPath, SettingsPath } from 'twenty-shared/types';
 import { getAppPath, getSettingsPath, isDefined } from 'twenty-shared/utils';
-import { useStore } from 'jotai';
 
 export const useDefaultHomePagePath = () => {
-  const store = useStore();
   const currentUser = useAtomStateValue(currentUserState);
+  const isMobile = useIsMobile();
   const { objectPermissionsByObjectMetadataId } = useObjectPermissions();
   const metadataStore = useAtomFamilyStateValue(
     metadataStoreState,
     'objectMetadataItems',
   );
   const areObjectMetadataItemsLoaded = metadataStore.status === 'up-to-date';
+  const navigationMenuItemsStatus = useAtomFamilySelectorValue(
+    metadataStoreStatusFamilySelector,
+    'navigationMenuItems',
+  );
+  const areNavigationMenuItemsLoaded =
+    navigationMenuItemsStatus === 'up-to-date';
 
   const { activeObjectMetadataItems } = useFilteredObjectMetadataItems();
+  const objectMetadataItems = useAtomStateValue(objectMetadataItemsSelector);
+  const views = useAtomStateValue(viewsSelector);
+  const navigationMenuItemsInDisplayOrder = useNavigationMenuItemSectionItems();
 
   const readableNonSystemObjectMetadataItems = useMemo(
     () =>
@@ -37,24 +51,34 @@ export const useDefaultHomePagePath = () => {
     [activeObjectMetadataItems, objectPermissionsByObjectMetadataId],
   );
 
-  const getActiveObjectMetadataItemMatchingId = useCallback(
-    (objectMetadataId: string) => {
-      return readableNonSystemObjectMetadataItems.find(
-        (item) => item.id === objectMetadataId,
-      );
-    },
-    [readableNonSystemObjectMetadataItems],
-  );
-
-  const views = useAtomStateValue(viewsSelector);
-
-  const getFirstView = useCallback(
+  const getTargetViewId = useCallback(
     (objectMetadataItemId: string | undefined | null) => {
-      return views.find(
-        (view) => view.objectMetadataId === objectMetadataItemId,
+      const { firstSelectableViewId, indexViewId } = computeObjectViewTargetIds(
+        {
+          views,
+          objectMetadataId: objectMetadataItemId ?? undefined,
+        },
       );
+
+      return firstSelectableViewId ?? indexViewId;
     },
     [views],
+  );
+
+  const firstNavigationMenuItemLink = useMemo(
+    () =>
+      getFirstNavigationMenuItemLink({
+        navigationMenuItemsInDisplayOrder,
+        objectMetadataItems,
+        views,
+        objectPermissionsByObjectMetadataId,
+      }),
+    [
+      objectMetadataItems,
+      objectPermissionsByObjectMetadataId,
+      views,
+      navigationMenuItemsInDisplayOrder,
+    ],
   );
 
   const firstObjectPathInfo = useMemo<ObjectPathInfo | null>(() => {
@@ -64,74 +88,52 @@ export const useDefaultHomePagePath = () => {
       return null;
     }
 
-    const view = getFirstView(firstObjectMetadataItem?.id);
+    const viewId = getTargetViewId(firstObjectMetadataItem.id);
 
-    return { objectMetadataItem: firstObjectMetadataItem, view };
-  }, [getFirstView, readableNonSystemObjectMetadataItems]);
-
-  const getDefaultObjectPathInfo = useCallback(() => {
-    const lastVisitedObjectMetadataItemId = store.get(
-      lastVisitedObjectMetadataItemIdState.atom,
-    );
-
-    const lastVisitedObjectMetadataItem = isDefined(
-      lastVisitedObjectMetadataItemId,
-    )
-      ? getActiveObjectMetadataItemMatchingId(lastVisitedObjectMetadataItemId)
-      : undefined;
-
-    if (isDefined(lastVisitedObjectMetadataItem)) {
-      return {
-        view: getFirstView(lastVisitedObjectMetadataItemId),
-        objectMetadataItem: lastVisitedObjectMetadataItem,
-      };
-    }
-
-    return firstObjectPathInfo;
-  }, [
-    firstObjectPathInfo,
-    getActiveObjectMetadataItemMatchingId,
-    getFirstView,
-    store,
-  ]);
+    return { objectMetadataItem: firstObjectMetadataItem, viewId };
+  }, [getTargetViewId, readableNonSystemObjectMetadataItems]);
 
   const defaultHomePagePath = useMemo(() => {
     if (!isDefined(currentUser)) {
       return AppPath.SignInUp;
     }
 
+    if (isMobile) {
+      return AppPath.Home;
+    }
+
+    // Both stores are empty right after login; deciding now would pick a wrong fallback.
+    if (!areObjectMetadataItemsLoaded || !areNavigationMenuItemsLoaded) {
+      return AppPath.Index;
+    }
+
     if (isEmpty(readableNonSystemObjectMetadataItems)) {
-      // Object metadata may legitimately be empty for a user with no readable
-      // objects, in which case /settings/profile is the intended fallback.
-      // It can also be transiently empty during the post-login window before
-      // workspace metadata has finished loading. Defer to AppPath.Index in
-      // that case so the user isn't stranded on /settings/profile once
-      // metadata becomes available.
-      if (!areObjectMetadataItemsLoaded) {
-        return AppPath.Index;
-      }
       return getSettingsPath(SettingsPath.ProfilePage);
     }
 
-    const defaultObjectPathInfo = getDefaultObjectPathInfo();
+    if (isDefined(firstNavigationMenuItemLink)) {
+      return firstNavigationMenuItemLink;
+    }
 
-    if (!isDefined(defaultObjectPathInfo)) {
+    if (!isDefined(firstObjectPathInfo)) {
       return AppPath.NotFound;
     }
 
-    const namePlural = defaultObjectPathInfo.objectMetadataItem?.namePlural;
-    const viewId = defaultObjectPathInfo.view?.id;
-
     return getAppPath(
       AppPath.RecordIndexPage,
-      { objectNamePlural: namePlural },
-      viewId ? { viewId } : undefined,
+      { objectNamePlural: firstObjectPathInfo.objectMetadataItem?.namePlural },
+      isDefined(firstObjectPathInfo.viewId)
+        ? { viewId: firstObjectPathInfo.viewId }
+        : undefined,
     );
   }, [
     currentUser,
-    getDefaultObjectPathInfo,
+    isMobile,
     readableNonSystemObjectMetadataItems,
     areObjectMetadataItemsLoaded,
+    areNavigationMenuItemsLoaded,
+    firstNavigationMenuItemLink,
+    firstObjectPathInfo,
   ]);
 
   return { defaultHomePagePath };

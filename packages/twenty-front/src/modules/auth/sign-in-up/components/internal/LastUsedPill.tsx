@@ -1,19 +1,21 @@
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { Pill } from 'twenty-ui/components';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Badge } from 'twenty-ui/primitives/data-display';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 const StyledPillContainer = styled.span`
   position: absolute;
-  right: calc(-1 * ${themeCssVariables.spacing[5]});
-  top: calc(-1 * ${themeCssVariables.spacing[2]});
+  right: -14px;
+  top: -10px;
 
-  > span {
-    background: ${themeCssVariables.color.blue3};
-    border: 1px solid ${themeCssVariables.color.blue5};
+  > span[data-badge-size] {
+    background: ${themeCssVariables.accent.accent3};
+    border: 1px solid ${themeCssVariables.accent.accent5};
     border-radius: ${themeCssVariables.border.radius.pill};
-    color: ${themeCssVariables.color.blue};
+    color: ${themeCssVariables.accent.accent9};
+    corner-shape: round;
     font-weight: ${themeCssVariables.font.weight.semiBold};
+    height: ${themeCssVariables.spacing[5]};
   }
 `;
 
@@ -22,13 +24,13 @@ export const LastUsedPill = () => {
 
   return (
     <StyledPillContainer>
-      <Pill
-        label={t({
+      <Badge>
+        {t({
           message: 'Last',
           comment:
             'Short label (keep brief) indicating the most recently used login method',
         })}
-      />
+      </Badge>
     </StyledPillContainer>
   );
 };

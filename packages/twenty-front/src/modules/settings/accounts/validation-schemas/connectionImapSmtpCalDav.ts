@@ -13,7 +13,9 @@ const connectionParameters = z
     port: z.int().nullable().default(null),
     username: z.string().optional(),
     password: z.string().default(''),
-    secure: z.boolean().default(true),
+    connectionSecurity: z
+      .enum(['NONE', 'STARTTLS', 'SSL_TLS'])
+      .default('SSL_TLS'),
   })
   .refine(
     (data) => {
@@ -30,6 +32,7 @@ const connectionParameters = z
 
 export const connectionImapSmtpCalDav = z
   .object({
+    name: z.string().trim(),
     handle: z.email('Invalid email address'),
     IMAP: connectionParameters.optional(),
     SMTP: connectionParameters.optional(),
@@ -50,6 +53,7 @@ export const connectionImapSmtpCalDav = z
 
 export const connectionImapSmtpCalDavUpdate = z
   .object({
+    name: z.string().trim(),
     handle: z.email('Invalid email address'),
     IMAP: connectionParameters.optional(),
     SMTP: connectionParameters.optional(),

@@ -8,8 +8,9 @@ import { Select } from '@/ui/input/components/Select';
 import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
 import { t } from '@lingui/core/macro';
 import { isDefined } from 'twenty-shared/utils';
-import { H2Title, IconUserPin, useIcons } from 'twenty-ui/display';
-import { Card, Section } from 'twenty-ui/layout';
+import { Section } from 'twenty-ui/components/layout';
+import { IconUserPin, useIcons } from 'twenty-ui/icon';
+import { Card } from 'twenty-ui/primitives/surfaces';
 import { useMutation } from '@apollo/client/react';
 import {
   type UpdateWorkspaceMutation,
@@ -69,12 +70,12 @@ export const SettingsRoleDefaultRole = ({
   }
 
   return (
-    <Section>
-      <H2Title
+    <Section.Root>
+      <Section.Header
         title={t`Default Role`}
         description={t`Assigned to users who join via invite link, approved domain, or SSO, and used as fallback when an assigned role is deleted`}
       />
-      <Card rounded>
+      <Card.Root rounded>
         <SettingsOptionCardContentSelect
           Icon={IconUserPin}
           title={t`Default Role`}
@@ -91,7 +92,7 @@ export const SettingsRoleDefaultRole = ({
             }
           />
         </SettingsOptionCardContentSelect>
-      </Card>
-    </Section>
+      </Card.Root>
+    </Section.Root>
   );
 };

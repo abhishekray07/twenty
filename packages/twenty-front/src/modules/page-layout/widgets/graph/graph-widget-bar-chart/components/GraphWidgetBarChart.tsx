@@ -1,3 +1,4 @@
+import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { pageLayoutDraggingWidgetIdComponentState } from '@/page-layout/states/pageLayoutDraggingWidgetIdComponentState';
 import { pageLayoutResizingWidgetIdComponentState } from '@/page-layout/states/pageLayoutResizingWidgetIdComponentState';
 import { GraphWidgetChartContainer } from '@/page-layout/widgets/graph/components/GraphWidgetChartContainer';
@@ -27,13 +28,14 @@ import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomState
 import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
 import { styled } from '@linaria/react';
 import { isNumber } from '@sniptt/guards';
-import { useContext, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { ThemeContext } from 'twenty-ui/theme-constants';
+import { useTheme } from 'twenty-ui/theme';
 import { useDebouncedCallback } from 'use-debounce';
 import { BarChartLayout } from '~/generated-metadata/graphql';
 
 type GraphWidgetBarChartProps = {
+  axisDisplayType?: GraphValueFormatOptions['displayType'];
   colorMode: GraphColorMode;
   data: BarChartDatum[];
   groupMode?: 'grouped' | 'stacked';
@@ -50,6 +52,7 @@ type GraphWidgetBarChartProps = {
   showGrid?: boolean;
   showLegend?: boolean;
   showValues?: boolean;
+  tooltipDisplayType?: GraphValueFormatOptions['displayType'];
   xAxisLabel?: string;
   yAxisLabel?: string;
 } & GraphValueFormatOptions;
@@ -82,13 +85,15 @@ export const GraphWidgetBarChart = ({
   rangeMax,
   omitNullValues = false,
   displayType,
+  axisDisplayType,
+  tooltipDisplayType,
   decimals,
   prefix,
   suffix,
   customFormatter,
   onSliceClick,
 }: GraphWidgetBarChartProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
   const colorRegistry = createGraphColorRegistry(theme.color);
 
   const [chartWidth, setChartWidth] = useState<number>(0);
@@ -124,15 +129,34 @@ export const GraphWidgetBarChart = ({
 
   const allowDataTransitions = !isLayoutAnimating;
 
+  const { formatNumber } = useNumberFormat();
+
   const formatOptions = useMemo<GraphValueFormatOptions>(
     () => ({
       customFormatter,
       decimals,
       displayType,
+      formatNumberFn: formatNumber,
       prefix,
       suffix,
     }),
-    [customFormatter, decimals, displayType, prefix, suffix],
+    [customFormatter, decimals, displayType, formatNumber, prefix, suffix],
+  );
+
+  const axisFormatOptions = useMemo<GraphValueFormatOptions>(
+    () => ({
+      ...formatOptions,
+      displayType: axisDisplayType ?? displayType,
+    }),
+    [formatOptions, axisDisplayType, displayType],
+  );
+
+  const tooltipFormatOptions = useMemo<GraphValueFormatOptions>(
+    () => ({
+      ...formatOptions,
+      displayType: tooltipDisplayType ?? displayType,
+    }),
+    [formatOptions, tooltipDisplayType, displayType],
   );
 
   const { enrichedKeysMap, enrichedKeys, legendItems, visibleKeys } =
@@ -262,6 +286,7 @@ export const GraphWidgetBarChart = ({
             hasExplicitRangeBounds={hasExplicitRangeBounds}
             enrichedKeysMap={enrichedKeysMap}
             formatOptions={formatOptions}
+            axisFormatOptions={axisFormatOptions}
             rightTickLabels={rightTickLabels}
             groupMode={groupMode}
             hasNoData={hasNoData}
@@ -280,7 +305,7 @@ export const GraphWidgetBarChart = ({
         containerRef={containerRef}
         dataByIndexValue={dataByIndexValue}
         enrichedKeys={enrichedKeys}
-        formatOptions={formatOptions}
+        formatOptions={tooltipFormatOptions}
         onMouseEnter={handleTooltipMouseEnter}
         onMouseLeave={handleTooltipMouseLeave}
         onSliceClick={onSliceClick}

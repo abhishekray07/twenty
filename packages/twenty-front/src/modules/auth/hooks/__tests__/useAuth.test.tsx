@@ -11,10 +11,19 @@ import {
   results,
   token,
 } from '@/auth/hooks/__mocks__/useAuth';
+import {
+  type CurrentUser,
+  currentUserState,
+} from '@/auth/states/currentUserState';
+import {
+  type CurrentWorkspace,
+  currentWorkspaceState,
+} from '@/auth/states/currentWorkspaceState';
 import { returnToPathState } from '@/auth/states/returnToPathState';
-import { SnackBarComponentInstanceContext } from '@/ui/feedback/snack-bar-manager/contexts/SnackBarComponentInstanceContext';
 import { renderHook } from '@testing-library/react';
 import { getDefaultStore } from 'jotai';
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
+import { ToastProvider } from 'twenty-ui/components/feedback';
 
 const redirectSpy = jest.fn();
 
@@ -63,11 +72,7 @@ jest.mock('@/domain-manager/hooks/useLastAuthenticatedWorkspaceDomain', () => ({
 const Wrapper = ({ children }: { children: ReactNode }) => (
   <MockedProvider mocks={Object.values(mocks)}>
     <MemoryRouter>
-      <SnackBarComponentInstanceContext.Provider
-        value={{ instanceId: 'test-instance-id' }}
-      >
-        {children}
-      </SnackBarComponentInstanceContext.Provider>
+      <ToastProvider>{children}</ToastProvider>
     </MemoryRouter>
   </MockedProvider>
 );
@@ -184,6 +189,13 @@ describe('useAuth', () => {
 
   it('should handle sign-out', async () => {
     sessionStorage.setItem('lingering-key', 'should-be-cleared');
+    getDefaultStore().set(currentWorkspaceState.atom, {
+      id: 'workspace-id',
+      activationStatus: WorkspaceActivationStatus.SUSPENDED,
+    } as CurrentWorkspace);
+    getDefaultStore().set(currentUserState.atom, {
+      id: 'user-id',
+    } as CurrentUser);
 
     const { result } = renderHooks();
 
@@ -192,6 +204,8 @@ describe('useAuth', () => {
     });
 
     expect(sessionStorage.length).toBe(0);
+    expect(getDefaultStore().get(currentWorkspaceState.atom)).toBeNull();
+    expect(getDefaultStore().get(currentUserState.atom)).toBeNull();
   });
 
   it('should handle credential sign-up', async () => {

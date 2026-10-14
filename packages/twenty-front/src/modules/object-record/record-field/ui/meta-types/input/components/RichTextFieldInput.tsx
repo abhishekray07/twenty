@@ -1,20 +1,19 @@
-import { SKELETON_LOADER_HEIGHT_SIZES } from '@/activities/components/SkeletonLoader';
-import { useOpenRichTextInSidePanel } from '@/side-panel/hooks/useOpenRichTextInSidePanel';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
-import { useRegisterInputEvents } from '@/object-record/record-field/ui/meta-types/input/hooks/useRegisterInputEvents';
-import { RecordFieldComponentInstanceContext } from '@/object-record/record-field/ui/states/contexts/RecordFieldComponentInstanceContext';
-
+import { SkeletonLine } from '@/ui/feedback/skeleton/components/SkeletonLine';
 import { FieldContext } from '@/object-record/record-field/ui/contexts/FieldContext';
 import { FieldInputEventContext } from '@/object-record/record-field/ui/contexts/FieldInputEventContext';
-
+import { useRegisterInputEvents } from '@/ui/input/hooks/useRegisterInputEvents';
+import { RecordFieldComponentInstanceContext } from '@/object-record/record-field/ui/states/contexts/RecordFieldComponentInstanceContext';
 import { type FieldRichTextMetadata } from '@/object-record/record-field/ui/types/FieldMetadata';
+import { useOpenRichTextInSidePanel } from '@/side-panel/hooks/useOpenRichTextInSidePanel';
 import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
 import { styled } from '@linaria/react';
+import { t } from '@lingui/core/macro';
 import { Suspense, lazy, useContext, useRef } from 'react';
-import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
-import { IconLayoutSidebarLeftCollapse } from 'twenty-ui/display';
-import { FloatingIconButton } from 'twenty-ui/input';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { SKELETON_HEIGHT_SIZES } from 'twenty-ui/primitives/feedback';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { IconButton } from 'twenty-ui/components/input';
+import { IconLayoutSidebarLeftCollapse } from 'twenty-ui/icon';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 const ActivityRichTextEditor = lazy(() =>
   import('@/activities/components/ActivityRichTextEditor').then((module) => ({
@@ -31,14 +30,24 @@ const RichTextFieldEditor = lazy(() =>
 );
 
 const StyledContainer = styled.div`
+  align-items: flex-start;
   background-color: ${themeCssVariables.background.primary};
   box-sizing: border-box;
   display: flex;
   margin: 0 0 0 calc(-1 * ${themeCssVariables.spacing[5]});
+  max-height: min(calc(60vh / var(--t-zoom, 1)), 500px);
+  overflow: hidden;
   padding: ${themeCssVariables.spacing[2]} ${themeCssVariables.spacing[2]}
     ${themeCssVariables.spacing[2]} ${themeCssVariables.spacing[12]};
   position: relative;
   width: 480px;
+`;
+
+const StyledEditorScroll = styled.div`
+  align-self: stretch;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 `;
 
 const StyledCollapseButton = styled.div`
@@ -49,15 +58,11 @@ const StyledCollapseButton = styled.div`
 `;
 
 const LoadingSkeleton = () => {
-  const { theme } = useContext(ThemeContext);
   return (
-    <SkeletonTheme
-      baseColor={theme.background.tertiary}
-      highlightColor={theme.background.transparent.lighter}
-      borderRadius={theme.border.radius.sm}
-    >
-      <Skeleton height={SKELETON_LOADER_HEIGHT_SIZES.standard.s} />
-    </SkeletonTheme>
+    <SkeletonLine
+      height={SKELETON_HEIGHT_SIZES.s}
+      borderRadius={themeCssVariables.border.radius.md}
+    />
   );
 };
 
@@ -104,29 +109,34 @@ export const RichTextFieldInput = () => {
 
   return (
     <StyledContainer ref={containerRef}>
-      <Suspense fallback={<LoadingSkeleton />}>
-        {isActivityObject(objectNameSingular) ? (
-          <ActivityRichTextEditor
-            activityId={recordId}
-            activityObjectNameSingular={objectNameSingular}
-          />
-        ) : (
-          <RichTextFieldEditor
-            recordId={recordId}
-            objectNameSingular={objectNameSingular}
-            fieldName={fieldName}
-          />
-        )}
-      </Suspense>
+      <StyledEditorScroll>
+        <Suspense fallback={<LoadingSkeleton />}>
+          {isActivityObject(objectNameSingular) ? (
+            <ActivityRichTextEditor
+              activityId={recordId}
+              activityObjectNameSingular={objectNameSingular}
+            />
+          ) : (
+            <RichTextFieldEditor
+              recordId={recordId}
+              objectNameSingular={objectNameSingular}
+              fieldName={fieldName}
+            />
+          )}
+        </Suspense>
+      </StyledEditorScroll>
       <StyledCollapseButton>
-        <FloatingIconButton
-          Icon={IconLayoutSidebarLeftCollapse}
-          size="small"
+        <IconButton
+          elevated
+          size="sm"
           onClick={() => {
             onEscape?.({ skipPersist: true });
             openRichTextInSidePanel(recordId, objectNameSingular, fieldName);
           }}
-        />
+          aria-label={t`Open in side panel`}
+        >
+          <IconLayoutSidebarLeftCollapse />
+        </IconButton>
       </StyledCollapseButton>
     </StyledContainer>
   );

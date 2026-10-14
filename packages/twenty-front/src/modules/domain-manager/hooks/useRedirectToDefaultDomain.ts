@@ -1,3 +1,5 @@
+import { CHOOSE_WORKSPACE_ACTION } from '@/auth/sign-in-up/constants/ChooseWorkspaceAction';
+import { SIGN_IN_UP_ACTION_SEARCH_PARAM } from '@/auth/sign-in-up/constants/SignInUpActionSearchParam';
 import { returnToPathState } from '@/auth/states/returnToPathState';
 import { useLastAuthenticatedWorkspaceDomain } from '@/domain-manager/hooks/useLastAuthenticatedWorkspaceDomain';
 import { useReadDefaultDomainFromConfiguration } from '@/domain-manager/hooks/useReadDefaultDomainFromConfiguration';
@@ -12,10 +14,17 @@ export const useRedirectToDefaultDomain = () => {
   const store = useStore();
 
   const { redirect } = useRedirect();
-  const redirectToDefaultDomain = () => {
+  const redirectToDefaultDomain = (options?: {
+    pathname?: string;
+    searchParams?: Record<string, string>;
+  }) => {
     const url = new URL(window.location.href);
     if (url.hostname !== defaultDomain) {
       setLastAuthenticateWorkspaceDomain(null);
+      url.searchParams.set(
+        SIGN_IN_UP_ACTION_SEARCH_PARAM,
+        CHOOSE_WORKSPACE_ACTION,
+      );
 
       const returnToPath = store.get(returnToPathState.atom);
       if (
@@ -24,6 +33,14 @@ export const useRedirectToDefaultDomain = () => {
       ) {
         url.searchParams.set('returnToPath', returnToPath);
       }
+
+      if (isNonEmptyString(options?.pathname)) {
+        url.pathname = options.pathname;
+      }
+
+      Object.entries(options?.searchParams ?? {}).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+      });
 
       url.hostname = defaultDomain;
       redirect(url.toString());

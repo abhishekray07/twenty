@@ -1,18 +1,25 @@
+import { TRIGGER_STEP_ID } from 'twenty-shared/workflow';
 import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { useAtomFamilyState } from '@/ui/utilities/state/jotai/hooks/useAtomFamilyState';
 import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
 import { useWorkflowWithCurrentVersion } from '@/workflow/hooks/useWorkflowWithCurrentVersion';
 import { flowComponentState } from '@/workflow/states/flowComponentState';
+import { shouldWorkflowRefetchRequestFamilyState } from '@/workflow/states/shouldWorkflowRefetchRequestFamilyState';
 import { workflowLastCreatedStepIdComponentState } from '@/workflow/states/workflowLastCreatedStepIdComponentState';
 import { workflowVisualizerWorkflowIdComponentState } from '@/workflow/states/workflowVisualizerWorkflowIdComponentState';
-import { type WorkflowVersion } from '@/workflow/types/Workflow';
+import {
+  type WorkflowAction,
+  type WorkflowTrigger,
+} from '@/workflow/types/Workflow';
 import { workflowDiagramComponentState } from '@/workflow/workflow-diagram/states/workflowDiagramComponentState';
+import { useWorkflowVersionContent } from '@/workflow/workflow-version/hooks/useWorkflowVersionContent';
 import { useStepsOutputSchema } from '@/workflow/workflow-variables/hooks/useStepsOutputSchema';
 
-import { getWorkflowVersionDiagram } from '@/workflow/workflow-diagram/utils/getWorkflowVersionDiagram';
+import { generateWorkflowDiagram } from '@/workflow/workflow-diagram/utils/generateWorkflowDiagram';
 import { mergeWorkflowDiagrams } from '@/workflow/workflow-diagram/utils/mergeWorkflowDiagrams';
 import { useStore } from 'jotai';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 
 export const WorkflowDiagramEffect = () => {
@@ -28,7 +35,9 @@ export const WorkflowDiagramEffect = () => {
     workflowDiagramComponentState,
   );
   const setFlow = useSetAtomComponentState(flowComponentState);
-  const { populateStepsOutputSchema } = useStepsOutputSchema();
+  const flow = useAtomComponentStateValue(flowComponentState);
+  const { populateStepsOutputSchema, deleteStepsOutputSchema } =
+    useStepsOutputSchema();
 
   const workflowLastCreatedStepId = useAtomComponentStateCallbackState(
     workflowLastCreatedStepIdComponentState,
@@ -37,12 +46,36 @@ export const WorkflowDiagramEffect = () => {
   const store = useStore();
   const currentVersion = workflowWithCurrentVersion?.currentVersion;
 
+  const { content, refetchContent, contentUpdatedAt } =
+    useWorkflowVersionContent(currentVersion?.id);
+
+  const [shouldWorkflowRefetchRequest, setShouldWorkflowRefetchRequest] =
+    useAtomFamilyState(
+      shouldWorkflowRefetchRequestFamilyState,
+      workflowVisualizerWorkflowId ?? '',
+    );
+
+  const [seededVersionId, setSeededVersionId] = useState<string>();
+  const [seededVersionUpdatedAt, setSeededVersionUpdatedAt] =
+    useState<string>();
+  const [previousDiagramUpdatedAt, setPreviousDiagramUpdatedAt] =
+    useState<string>();
+  const [previousDiagramVersionId, setPreviousDiagramVersionId] =
+    useState<string>();
+
   const computeAndMergeNewWorkflowDiagram = useCallback(
-    (version: WorkflowVersion) => {
+    (
+      flowToRender: {
+        trigger: WorkflowTrigger | null;
+        steps: WorkflowAction[] | null;
+      },
+      preservePositions: boolean,
+    ) => {
       const previousWorkflowDiagram = store.get(workflowDiagram);
 
-      const nextWorkflowDiagram = getWorkflowVersionDiagram({
-        workflowVersion: version,
+      const nextWorkflowDiagram = generateWorkflowDiagram({
+        trigger: flowToRender.trigger ?? undefined,
+        steps: flowToRender.steps ?? [],
         workflowContext: 'workflow',
       });
 
@@ -52,6 +85,7 @@ export const WorkflowDiagramEffect = () => {
         mergedWorkflowDiagram = mergeWorkflowDiagrams(
           previousWorkflowDiagram,
           nextWorkflowDiagram,
+          { preservePositions },
         );
       }
 
@@ -76,26 +110,100 @@ export const WorkflowDiagramEffect = () => {
   );
 
   useEffect(() => {
-    if (!isDefined(currentVersion)) {
+    if (!shouldWorkflowRefetchRequest || !isDefined(currentVersion?.id)) {
       return;
     }
+
+    setShouldWorkflowRefetchRequest(false);
+
+    void refetchContent()
+      .then(() => {
+        setSeededVersionId(undefined);
+      })
+      .catch(() => {});
+  }, [
+    currentVersion?.id,
+    shouldWorkflowRefetchRequest,
+    setShouldWorkflowRefetchRequest,
+    refetchContent,
+  ]);
+
+  useEffect(() => {
+    if (!isDefined(currentVersion) || !isDefined(content)) {
+      return;
+    }
+
+    if (content.workflowVersionId !== currentVersion.id) {
+      return;
+    }
+
+    if (
+      seededVersionId === currentVersion.id &&
+      seededVersionUpdatedAt === contentUpdatedAt
+    ) {
+      return;
+    }
+
+    if (isDefined(contentUpdatedAt)) {
+      deleteStepsOutputSchema({
+        workflowVersionId: currentVersion.id,
+        stepIds: [
+          TRIGGER_STEP_ID,
+          ...(content.steps ?? []).map((step: WorkflowAction) => step.id),
+        ],
+      });
+    }
+    setSeededVersionId(currentVersion.id);
+    setSeededVersionUpdatedAt(contentUpdatedAt);
 
     setFlow({
       workflowVersionId: currentVersion.id,
-      trigger: currentVersion.trigger,
-      steps: currentVersion.steps,
+      trigger: content.trigger,
+      steps: content.steps,
     });
-
-    computeAndMergeNewWorkflowDiagram(currentVersion);
-  }, [computeAndMergeNewWorkflowDiagram, setFlow, currentVersion]);
+  }, [
+    content,
+    currentVersion,
+    seededVersionId,
+    seededVersionUpdatedAt,
+    contentUpdatedAt,
+    setFlow,
+    deleteStepsOutputSchema,
+  ]);
 
   useEffect(() => {
-    if (!isDefined(currentVersion)) {
+    if (!isDefined(flow)) {
       return;
     }
 
-    populateStepsOutputSchema(currentVersion);
-  }, [currentVersion, populateStepsOutputSchema]);
+    const isSameVersion = previousDiagramVersionId === flow.workflowVersionId;
+    const isTransitionToDraft = currentVersion?.status === 'DRAFT';
+    const shouldPreservePositions =
+      (isSameVersion || isTransitionToDraft) &&
+      previousDiagramUpdatedAt === seededVersionUpdatedAt;
+
+    setPreviousDiagramVersionId(flow.workflowVersionId);
+    setPreviousDiagramUpdatedAt(seededVersionUpdatedAt);
+
+    computeAndMergeNewWorkflowDiagram(flow, shouldPreservePositions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computeAndMergeNewWorkflowDiagram, flow, seededVersionUpdatedAt]);
+
+  useEffect(() => {
+    if (!isDefined(currentVersion) || !isDefined(flow)) {
+      return;
+    }
+
+    if (flow.workflowVersionId !== currentVersion.id) {
+      return;
+    }
+
+    populateStepsOutputSchema({
+      ...currentVersion,
+      trigger: flow.trigger,
+      steps: flow.steps,
+    });
+  }, [currentVersion, flow, populateStepsOutputSchema]);
 
   return null;
 };

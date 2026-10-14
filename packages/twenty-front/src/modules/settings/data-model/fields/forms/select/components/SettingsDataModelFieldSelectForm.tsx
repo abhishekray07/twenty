@@ -1,5 +1,5 @@
 import { styled } from '@linaria/react';
-import { type DropResult } from '@hello-pangea/dnd';
+import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
 import { Controller, useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -22,28 +22,27 @@ import { applySimpleQuotesToString } from '~/utils/string/applySimpleQuotesToStr
 import { useFieldMetadataItemById } from '@/object-metadata/hooks/useFieldMetadataItemById';
 import { AdvancedSettingsWrapper } from '@/settings/components/AdvancedSettingsWrapper';
 import { TextArea } from '@/ui/input/components/TextArea';
-import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
-import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
+import { DropdownRoot } from '@/ui/layout/dropdown/components/DropdownRoot';
 import { GenericDropdownContentWidth } from '@/ui/layout/dropdown/constants/GenericDropdownContentWidth';
-import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
 import { isAdvancedModeEnabledState } from '@/ui/navigation/navigation-drawer/states/isAdvancedModeEnabledState';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { t } from '@lingui/core/macro';
-import { useContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { isDefined } from 'twenty-shared/utils';
+import { LightButton, LightIconButton } from 'twenty-ui/components/input';
+import { Dropdown } from 'twenty-ui/components/navigation';
 import {
   IconDotsVertical,
   IconPencil,
   IconPlus,
   IconPoint,
   IconTrash,
-} from 'twenty-ui/display';
-import { LightButton, LightIconButton } from 'twenty-ui/input';
-import { CardContent, CardFooter } from 'twenty-ui/layout';
-import { MenuItem } from 'twenty-ui/navigation';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+} from 'twenty-ui/icon';
+
+import { Card } from 'twenty-ui/primitives/surfaces';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 import { SettingsDataModelFieldSelectFormOptionRow } from './SettingsDataModelFieldSelectFormOptionRow';
 
 export const settingsDataModelFieldSelectFormSchema = z.object({
@@ -68,7 +67,7 @@ type SettingsDataModelFieldSelectFormProps = {
 };
 
 const StyledContainerWrapper = styled.div`
-  > * {
+  > div {
     padding-bottom: 14px;
   }
 `;
@@ -127,11 +126,9 @@ const StyledIconPointContainer = styled.span`
   margin-right: ${themeCssVariables.spacing['0.5']};
 `;
 
-const StyledFooterContainer = styled.div`
-  > * {
-    background-color: ${themeCssVariables.background.secondary};
-    padding: ${themeCssVariables.spacing[1]};
-  }
+const StyledFooter = styled(Card.Footer)`
+  background-color: ${themeCssVariables.background.secondary};
+  padding: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledButtonContainer = styled.div`
@@ -166,7 +163,7 @@ export const SettingsDataModelFieldSelectForm = ({
   fieldType,
   disabled = false,
 }: SettingsDataModelFieldSelectFormProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
   const { initialDefaultValue, initialOptions } =
     useSelectSettingsFormInitialValues({
       fieldMetadataId: existingFieldMetadataId,
@@ -193,7 +190,6 @@ export const SettingsDataModelFieldSelectForm = ({
 
   const OPTIONS_DROPDOWN_ID =
     'settings-data-model-field-select-options-dropdown';
-  const { closeDropdown: closeOptionsDropdown } = useCloseDropdown();
 
   useEffect(() => {
     const newOptionValue = searchParams.get('newOption');
@@ -203,14 +199,17 @@ export const SettingsDataModelFieldSelectForm = ({
 
       const optionsWithNew = [...initialOptions, newOption];
 
-      setFormValue('options', optionsWithNew, { shouldDirty: true });
+      setFormValue('options', optionsWithNew, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       setHasAppliedNewOption(true);
     }
   }, [searchParams, hasAppliedNewOption, initialOptions, setFormValue]);
 
   const handleDragEnd = (
     values: FieldMetadataItemOption[],
-    result: DropResult,
+    result: DraggableListDropResult,
     onChange: (options: FieldMetadataItemOption[]) => void,
   ) => {
     if (!result.destination) return;
@@ -301,13 +300,19 @@ export const SettingsDataModelFieldSelectForm = ({
   const handleAddOption = () => {
     const newOptions = getOptionsWithNewOption();
 
-    setFormValue('options', newOptions, { shouldDirty: true });
+    setFormValue('options', newOptions, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   const handleInputEnter = () => {
     const newOptions = getOptionsWithNewOption();
 
-    setFormValue('options', newOptions, { shouldDirty: true });
+    setFormValue('options', newOptions, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   return (
@@ -325,7 +330,7 @@ export const SettingsDataModelFieldSelectForm = ({
         render={({ field: { onChange, value: options } }) => (
           <>
             <StyledContainerWrapper>
-              <CardContent>
+              <Card.Content>
                 <StyledOptionsHeaderContainer>
                   <StyledLabelContainer>
                     {!isBulkInputMode && (
@@ -355,49 +360,45 @@ export const SettingsDataModelFieldSelectForm = ({
                     </StyledOptionsLabel>
                   </StyledLabelContainer>
                   {!disabled && (
-                    <Dropdown
-                      dropdownId={OPTIONS_DROPDOWN_ID}
-                      clickableComponent={
-                        <LightIconButton
-                          Icon={IconDotsVertical}
-                          accent="tertiary"
-                        />
-                      }
-                      dropdownComponents={
-                        <DropdownContent
-                          widthInPixels={GenericDropdownContentWidth.Narrow}
-                        >
-                          <DropdownMenuItemsContainer>
-                            <MenuItem
-                              text={
-                                isBulkInputMode ? t`Single edit` : t`Bulk edit`
-                              }
-                              LeftIcon={IconPencil}
-                              onClick={() => {
-                                if (!isBulkInputMode) {
-                                  setBulkInputText(
-                                    convertOptionsToBulkText(options),
-                                  );
-                                }
-                                setIsBulkInputMode(
-                                  (currentInputMode) => !currentInputMode,
+                    <DropdownRoot dropdownId={OPTIONS_DROPDOWN_ID} type="menu">
+                      <Dropdown.Trigger
+                        render={
+                          <LightIconButton
+                            emphasis="subtle"
+                            aria-label={t`More options`}
+                          >
+                            <IconDotsVertical />
+                          </LightIconButton>
+                        }
+                      />
+                      <DropdownContent
+                        width={GenericDropdownContentWidth.Narrow}
+                        align="end"
+                      >
+                        <Dropdown.Section>
+                          <Dropdown.ActionItem
+                            startIcon={<IconPencil />}
+                            onClick={() => {
+                              if (!isBulkInputMode) {
+                                setBulkInputText(
+                                  convertOptionsToBulkText(options),
                                 );
-                                closeOptionsDropdown(OPTIONS_DROPDOWN_ID);
-                              }}
-                            />
-                            <MenuItem
-                              text={t`Remove all`}
-                              accent="danger"
-                              LeftIcon={IconTrash}
-                              onClick={() => {
-                                onChange([]);
-                                closeOptionsDropdown(OPTIONS_DROPDOWN_ID);
-                              }}
-                            />
-                          </DropdownMenuItemsContainer>
-                        </DropdownContent>
-                      }
-                    />
+                              }
+                              setIsBulkInputMode(
+                                (currentInputMode) => !currentInputMode,
+                              );
+                            }}
+                          >
+                            {isBulkInputMode ? t`Single edit` : t`Bulk edit`}
+                          </Dropdown.ActionItem>
+                          <Dropdown.ActionItem
+                            color="danger"
+                            startIcon={<IconTrash />}
+                            onClick={() => onChange([])}
+                          >{t`Remove all`}</Dropdown.ActionItem>
+                        </Dropdown.Section>
+                      </DropdownContent>
+                    </DropdownRoot>
                   )}
                 </StyledOptionsHeaderContainer>
 
@@ -440,11 +441,9 @@ export const SettingsDataModelFieldSelectForm = ({
                         <>
                           {options.map((option, index) => (
                             <DraggableItem
-                              isInsideScrollableContainer
                               key={option.id}
                               draggableId={option.id}
                               index={index}
-                              isDragDisabled={options.length === 1}
                               itemComponent={
                                 <SettingsDataModelFieldSelectFormOptionRow
                                   key={option.id}
@@ -462,7 +461,6 @@ export const SettingsDataModelFieldSelectForm = ({
                                     );
                                     onChange(nextOptions);
 
-                                    // Update option value in defaultValue if value has changed
                                     if (
                                       nextOption.value !== option.value &&
                                       isOptionDefaultValue(option.value)
@@ -516,20 +514,17 @@ export const SettingsDataModelFieldSelectForm = ({
                     />
                   </>
                 )}
-              </CardContent>
+              </Card.Content>
             </StyledContainerWrapper>
             {!disabled && !isBulkInputMode && (
-              <StyledFooterContainer>
-                <CardFooter>
-                  <StyledButtonContainer>
-                    <LightButton
-                      title={t`Add option`}
-                      Icon={IconPlus}
-                      onClick={handleAddOption}
-                    />
-                  </StyledButtonContainer>
-                </CardFooter>
-              </StyledFooterContainer>
+              <StyledFooter>
+                <StyledButtonContainer>
+                  <LightButton
+                    startIcon={<IconPlus />}
+                    onClick={handleAddOption}
+                  >{t`Add option`}</LightButton>
+                </StyledButtonContainer>
+              </StyledFooter>
             )}
           </>
         )}

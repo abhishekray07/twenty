@@ -1,18 +1,20 @@
+import { CARD_ACTION_CLASS_NAME } from '@/ui/layout/card/styles/CardActionClassName';
 import { styled } from '@linaria/react';
 
-import { type ReactNode, useContext } from 'react';
 import { t } from '@lingui/core/macro';
-import { Card, CardContent } from 'twenty-ui/layout';
-import { IconChevronRight } from 'twenty-ui/display';
-import { Pill } from 'twenty-ui/components';
+import { type ReactNode } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { IconChevronRight } from 'twenty-ui/icon';
+import { Badge } from 'twenty-ui/primitives/data-display';
+import { Card } from 'twenty-ui/primitives/surfaces';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 type SettingsCardProps = {
   description?: string;
   disabled?: boolean;
   soon?: boolean;
   Icon: ReactNode;
+  iconColor?: string;
   onClick?: () => void;
   title: string;
   className?: string;
@@ -21,32 +23,30 @@ type SettingsCardProps = {
 
 const StyledCardWrapper = styled.div<{
   disabled?: boolean;
-  clickable?: boolean;
 }>`
-  color: ${({ disabled }) =>
-    disabled
-      ? themeCssVariables.font.color.extraLight
-      : themeCssVariables.font.color.tertiary};
-  cursor: ${({ disabled, clickable }) =>
-    disabled ? 'not-allowed' : clickable ? 'pointer' : 'default'};
+  cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'default')};
   width: 100%;
-
-  > * {
-    color: inherit;
-  }
 `;
 
 const StyledCardContentContainer = styled.div`
-  > * {
-    display: flex;
-    flex-direction: column;
-    gap: ${themeCssVariables.spacing[2]};
-    padding: ${themeCssVariables.spacing[2]} ${themeCssVariables.spacing[2]};
+  a:hover & > div,
+  > div:has(> button:not(:disabled):hover) {
+    background-color: ${themeCssVariables.background.quaternary};
+    cursor: pointer;
+  }
+`;
 
-    &:hover {
-      background-color: ${themeCssVariables.background.quaternary};
-      cursor: pointer;
-    }
+const StyledCardContent = styled(Card.Content)`
+  display: flex;
+  flex-direction: column;
+  gap: ${themeCssVariables.spacing[2]};
+  padding: ${themeCssVariables.spacing[2]} ${themeCssVariables.spacing[2]};
+  position: relative;
+`;
+
+const StyledCardAction = styled.button`
+  &:disabled {
+    cursor: not-allowed;
   }
 `;
 
@@ -74,13 +74,25 @@ const StyledIconChevronRightContainer = styled.span`
   display: flex;
 `;
 
-const StyledDescription = styled.div`
+const StyledDescription = styled.div<{ disabled?: boolean }>`
+  color: ${({ disabled }) =>
+    disabled
+      ? themeCssVariables.font.color.extraLight
+      : themeCssVariables.font.color.tertiary};
+  line-height: ${themeCssVariables.text.lineHeight.lg};
   padding-bottom: ${themeCssVariables.spacing[2]};
   padding-left: ${themeCssVariables.spacing[7]};
 `;
 
-const StyledIconContainer = styled.div`
+const StyledIconContainer = styled.div<{
+  disabled?: boolean;
+  iconColor?: string;
+}>`
   align-items: center;
+  color: ${({ disabled, iconColor }) =>
+    disabled
+      ? themeCssVariables.font.color.extraLight
+      : (iconColor ?? themeCssVariables.font.color.tertiary)};
   display: flex;
   height: 24px;
   justify-content: center;
@@ -92,27 +104,35 @@ export const SettingsCard = ({
   soon,
   disabled = soon,
   Icon,
+  iconColor,
   onClick,
   title,
   className,
   Status,
 }: SettingsCardProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   return (
-    <StyledCardWrapper
-      disabled={disabled}
-      clickable={!!onClick}
-      className={className}
-    >
-      <Card onClick={disabled ? undefined : onClick} rounded={true} fullWidth>
+    <StyledCardWrapper disabled={disabled} className={className}>
+      <Card.Root rounded={true} fullWidth>
         <StyledCardContentContainer>
-          <CardContent>
+          <StyledCardContent>
+            {isDefined(onClick) && (
+              <StyledCardAction
+                className={CARD_ACTION_CLASS_NAME}
+                type="button"
+                aria-label={title}
+                onClick={onClick}
+                disabled={disabled}
+              />
+            )}
             <StyledHeader>
-              <StyledIconContainer>{Icon}</StyledIconContainer>
+              <StyledIconContainer disabled={disabled} iconColor={iconColor}>
+                {Icon}
+              </StyledIconContainer>
               <StyledTitle disabled={disabled}>
                 {title}
-                {soon && <Pill label={t`Soon`} />}
+                {soon && <Badge>{t`Soon`}</Badge>}
               </StyledTitle>
               {isDefined(Status) && Status}
               <StyledIconChevronRightContainer>
@@ -120,11 +140,13 @@ export const SettingsCard = ({
               </StyledIconChevronRightContainer>
             </StyledHeader>
             {description && (
-              <StyledDescription>{description}</StyledDescription>
+              <StyledDescription disabled={disabled}>
+                {description}
+              </StyledDescription>
             )}
-          </CardContent>
+          </StyledCardContent>
         </StyledCardContentContainer>
-      </Card>
+      </Card.Root>
     </StyledCardWrapper>
   );
 };

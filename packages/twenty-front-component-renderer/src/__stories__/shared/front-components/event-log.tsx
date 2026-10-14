@@ -1,4 +1,4 @@
-import { type SyntheticEvent, useState } from 'react';
+import { type SyntheticEvent, useCallback, useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 
 export type LoggedEventFile = {
@@ -16,6 +16,9 @@ export type LoggedEventEntry = {
   files?: LoggedEventFile[];
   key?: string;
   code?: string;
+  inputType?: string;
+  data?: string;
+  clipboardText?: string;
   shiftKey?: boolean;
   ctrlKey?: boolean;
   metaKey?: boolean;
@@ -24,6 +27,12 @@ export type LoggedEventEntry = {
   scrollLeft?: number;
   deltaX?: number;
   deltaY?: number;
+  clientX?: number;
+  clientY?: number;
+  offsetX?: number;
+  offsetY?: number;
+  movementX?: number;
+  movementY?: number;
 };
 
 const EVENT_LOG_STYLE = {
@@ -54,6 +63,10 @@ const isBooleanValue = (value: unknown): value is boolean =>
 
 const isUnknownRecord = (value: unknown): value is Record<string, unknown> =>
   isDefined(value) && typeof value === 'object';
+
+const isFunctionValue = (
+  value: unknown,
+): value is (...args: unknown[]) => unknown => typeof value === 'function';
 
 const isElement = (value: unknown): value is Element =>
   isUnknownRecord(value) && typeof value.getAttribute === 'function';
@@ -127,10 +140,30 @@ const readTestId = (
 const toUnknownRecord = (value: unknown): Record<string, unknown> =>
   isUnknownRecord(value) ? value : {};
 
+const readClipboardText = (
+  eventRecord: Record<string, unknown>,
+): string | undefined => {
+  const clipboardData = eventRecord.clipboardData;
+  if (!isUnknownRecord(clipboardData)) {
+    return undefined;
+  }
+
+  const getData = clipboardData.getData;
+  if (!isFunctionValue(getData)) {
+    return undefined;
+  }
+
+  const clipboardText = getData.call(clipboardData, 'text');
+
+  return isStringValue(clipboardText) && clipboardText !== ''
+    ? clipboardText
+    : undefined;
+};
+
 export const useEventLog = () => {
   const [entries, setEntries] = useState<LoggedEventEntry[]>([]);
 
-  const pushEvent = (event: SyntheticEvent<Element>) => {
+  const pushEvent = useCallback((event: SyntheticEvent<Element>) => {
     setEntries((previousEntries) => {
       const eventRecord = event as unknown as Record<string, unknown>;
       const target = toUnknownRecord(eventRecord.target);
@@ -176,6 +209,21 @@ export const useEventLog = () => {
         entry.code = code;
       }
 
+      const inputType = pickFromRecords(records, 'inputType', isStringValue);
+      if (isDefined(inputType)) {
+        entry.inputType = inputType;
+      }
+
+      const data = pickFromRecords(records, 'data', isStringValue);
+      if (isDefined(data)) {
+        entry.data = data;
+      }
+
+      const clipboardText = readClipboardText(eventRecord);
+      if (isDefined(clipboardText)) {
+        entry.clipboardText = clipboardText;
+      }
+
       const shiftKey = pickFromRecords(records, 'shiftKey', isBooleanValue);
       if (isDefined(shiftKey)) {
         entry.shiftKey = shiftKey;
@@ -216,9 +264,39 @@ export const useEventLog = () => {
         entry.deltaY = deltaY;
       }
 
+      const clientX = pickFromRecords(records, 'clientX', isNumberValue);
+      if (isDefined(clientX)) {
+        entry.clientX = clientX;
+      }
+
+      const clientY = pickFromRecords(records, 'clientY', isNumberValue);
+      if (isDefined(clientY)) {
+        entry.clientY = clientY;
+      }
+
+      const offsetX = pickFromRecords(records, 'offsetX', isNumberValue);
+      if (isDefined(offsetX)) {
+        entry.offsetX = offsetX;
+      }
+
+      const offsetY = pickFromRecords(records, 'offsetY', isNumberValue);
+      if (isDefined(offsetY)) {
+        entry.offsetY = offsetY;
+      }
+
+      const movementX = pickFromRecords(records, 'movementX', isNumberValue);
+      if (isDefined(movementX)) {
+        entry.movementX = movementX;
+      }
+
+      const movementY = pickFromRecords(records, 'movementY', isNumberValue);
+      if (isDefined(movementY)) {
+        entry.movementY = movementY;
+      }
+
       return [...previousEntries, entry];
     });
-  };
+  }, []);
 
   return { entries, pushEvent };
 };

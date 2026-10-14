@@ -24,7 +24,7 @@ import {
   IconArrowRight,
   IconEyeOff,
   IconSettings,
-} from 'twenty-ui/display';
+} from 'twenty-ui/icon';
 import { PermissionFlagType } from '~/generated-metadata/graphql';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
 
@@ -115,6 +115,7 @@ export const useRecordGroupActions = ({
         !isCurrentRecordGroupNotFound &&
         currentIndex < visibleRecordGroupIds.length - 1,
       position: 1,
+      closeOnClick: false,
       callback: () =>
         reorderRecordGroups({
           fromIndex: currentIndex,
@@ -127,6 +128,7 @@ export const useRecordGroupActions = ({
       icon: IconArrowLeft,
       condition: !isCurrentRecordGroupNotFound && currentIndex > 0,
       position: 2,
+      closeOnClick: false,
       callback: () =>
         reorderRecordGroups({
           fromIndex: currentIndex,

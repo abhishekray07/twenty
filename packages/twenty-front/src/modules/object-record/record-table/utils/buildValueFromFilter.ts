@@ -1,3 +1,5 @@
+import { Temporal } from 'temporal-polyfill';
+
 import { type CurrentWorkspaceMember } from '@/auth/states/currentWorkspaceMemberState';
 import { isCompositeFieldType } from '@/object-record/object-filter-dropdown/utils/isCompositeFieldType';
 
@@ -15,11 +17,13 @@ import {
 } from 'twenty-shared/types';
 import {
   assertUnreachable,
+  convertCurrencyAmountToCurrencyMicros,
   FILTER_OPERANDS_MAP,
   parseJson,
+  parseToInstantOrThrow,
+  parseToPlainDateOrThrow,
 } from 'twenty-shared/utils';
 import { RelationType } from '~/generated-metadata/graphql';
-import { convertCurrencyAmountToCurrencyMicros } from '~/utils/convertCurrencyToCurrencyMicros';
 
 type FilterOption = {
   label: string;
@@ -35,7 +39,9 @@ type ValueComputeContext = {
   options?: FilterOption[] | null;
   relationType?: RelationType;
   currentWorkspaceMember?: CurrentWorkspaceMember;
+  currentRecordId?: string;
   label?: string;
+  timeZone?: string;
 };
 
 type ValueHandler = (context: ValueComputeContext) => unknown;
@@ -86,22 +92,40 @@ const computeValueFromContainsOperand = (
   }
 };
 
-// TODO: fix this with Temporal
+const filterDateTimeToInstant = (
+  value: string,
+  timeZone: string,
+): Temporal.Instant =>
+  value.includes('T')
+    ? parseToInstantOrThrow(value)
+    : parseToPlainDateOrThrow(value).toZonedDateTime(timeZone).toInstant();
+
 const computeValueFromFilterDate = (
   operand: RecordFilterToRecordInputOperand<'DATE_TIME'>,
   value: string,
-) => {
+  isDateOnly: boolean,
+  timeZone = 'UTC',
+): string | undefined => {
   switch (operand) {
     case ViewFilterOperand.IS:
     case ViewFilterOperand.IS_AFTER:
+      return isDateOnly
+        ? parseToPlainDateOrThrow(value).toString()
+        : filterDateTimeToInstant(value, timeZone).toString();
     case ViewFilterOperand.IS_BEFORE:
-      return new Date(value);
+      return isDateOnly
+        ? parseToPlainDateOrThrow(value).subtract({ days: 1 }).toString()
+        : filterDateTimeToInstant(value, timeZone)
+            .subtract({ minutes: 1 })
+            .toString();
     case ViewFilterOperand.IS_TODAY:
     case ViewFilterOperand.IS_NOT_EMPTY:
     case ViewFilterOperand.IS_IN_PAST:
     case ViewFilterOperand.IS_IN_FUTURE:
     case ViewFilterOperand.IS_RELATIVE:
-      return new Date();
+      return isDateOnly
+        ? Temporal.Now.plainDateISO(timeZone).toString()
+        : Temporal.Now.instant().toString();
     case ViewFilterOperand.IS_EMPTY:
       return undefined;
     default:
@@ -231,14 +255,19 @@ const computeValueFromFilterRelation = (
   relationType?: RelationType,
   currentWorkspaceMember?: CurrentWorkspaceMember,
   label?: string,
+  currentRecordId?: string,
 ) => {
   switch (operand) {
     case ViewFilterOperand.IS: {
       const parsedValue = parseJson<{
         isCurrentWorkspaceMemberSelected: boolean;
+        isCurrentRecordSelected: boolean;
         selectedRecordIds: string[];
       }>(value);
       if (relationType === RelationType.MANY_TO_ONE) {
+        if (parsedValue?.isCurrentRecordSelected) {
+          return currentRecordId;
+        }
         if (label === 'Assignee') {
           return parsedValue?.isCurrentWorkspaceMemberSelected
             ? currentWorkspaceMember?.id
@@ -294,15 +323,19 @@ const VALUE_HANDLER_REGISTRY: Partial<Record<FieldMetadataType, ValueHandler>> =
       computeValueFromContainsOperand(operand as ContainsBasedOperand, value),
     [FieldMetadataType.RAW_JSON]: ({ operand, value }) =>
       computeValueFromContainsOperand(operand as ContainsBasedOperand, value),
-    [FieldMetadataType.DATE_TIME]: ({ operand, value }) =>
+    [FieldMetadataType.DATE_TIME]: ({ operand, value, timeZone }) =>
       computeValueFromFilterDate(
         operand as RecordFilterToRecordInputOperand<'DATE_TIME'>,
         value,
+        false,
+        timeZone,
       ),
-    [FieldMetadataType.DATE]: ({ operand, value }) =>
+    [FieldMetadataType.DATE]: ({ operand, value, timeZone }) =>
       computeValueFromFilterDate(
         operand as RecordFilterToRecordInputOperand<'DATE_TIME'>,
         value,
+        true,
+        timeZone,
       ),
     [FieldMetadataType.NUMBER]: ({ operand, value }) =>
       computeValueFromFilterNumber(
@@ -341,6 +374,7 @@ const VALUE_HANDLER_REGISTRY: Partial<Record<FieldMetadataType, ValueHandler>> =
       value,
       relationType,
       currentWorkspaceMember,
+      currentRecordId,
       label,
     }) =>
       computeValueFromFilterRelation(
@@ -349,6 +383,7 @@ const VALUE_HANDLER_REGISTRY: Partial<Record<FieldMetadataType, ValueHandler>> =
         relationType,
         currentWorkspaceMember,
         label,
+        currentRecordId,
       ),
     [FieldMetadataType.TS_VECTOR]: ({ operand, value }) =>
       computeValueFromFilterTSVector(
@@ -504,13 +539,17 @@ export const buildValueFromFilter = ({
   options,
   relationType,
   currentWorkspaceMember,
+  currentRecordId,
   label,
+  timeZone,
 }: {
   filter: RecordFilter;
   options?: FilterOption[] | null;
   relationType?: RelationType;
   currentWorkspaceMember?: CurrentWorkspaceMember;
+  currentRecordId?: string;
   label?: string;
+  timeZone?: string;
 }) => {
   if (isCompositeFieldType(filter.type)) {
     return buildCompositeValueFromFilter({
@@ -541,6 +580,8 @@ export const buildValueFromFilter = ({
     options,
     relationType,
     currentWorkspaceMember,
+    currentRecordId,
     label,
+    timeZone,
   });
 };

@@ -1,12 +1,16 @@
+import { styled } from '@linaria/react';
+import { getContiguousIncrementalValues } from 'twenty-shared/utils';
+
 import { RecordTableNoRecordGroupAddNew } from '@/object-record/record-table/components/RecordTableNoRecordGroupAddNew';
+import { RecordDragEndDropZone } from '@/object-record/record-drag/components/RecordDragEndDropZone';
+import { NO_RECORD_GROUP_FAMILY_KEY } from '@/object-record/record-index/states/selectors/recordIndexAllRecordIdsComponentSelector';
+import { RECORD_TABLE_ROW_DND_TYPE } from '@/object-record/record-table/constants/RecordTableRowDndType';
 import { RecordTableRowVirtualizedContainer } from '@/object-record/record-table/virtualization/components/RecordTableRowVirtualizedContainer';
 import { RecordTableVirtualizedBodyPlaceholder } from '@/object-record/record-table/virtualization/components/RecordTableVirtualizedBodyPlaceholder';
 import { RecordTableVirtualizedDebugHelper } from '@/object-record/record-table/virtualization/components/RecordTableVirtualizedDebugHelper';
 import { NUMBER_OF_VIRTUALIZED_ROWS } from '@/object-record/record-table/virtualization/constants/NumberOfVirtualizedRows';
 import { totalNumberOfRecordsToVirtualizeComponentState } from '@/object-record/record-table/virtualization/states/totalNumberOfRecordsToVirtualizeComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
-import { styled } from '@linaria/react';
-import { getContiguousIncrementalValues } from 'twenty-shared/utils';
 
 const StyledNoRecordGroupContainer = styled.div`
   display: flex;
@@ -38,7 +42,13 @@ export const RecordTableNoRecordGroupRows = () => {
           />
         );
       })}
-      <RecordTableNoRecordGroupAddNew />
+      <RecordDragEndDropZone
+        droppableId={NO_RECORD_GROUP_FAMILY_KEY}
+        dndType={RECORD_TABLE_ROW_DND_TYPE}
+        index={totalNumberOfRecordsToVirtualize}
+      >
+        <RecordTableNoRecordGroupAddNew />
+      </RecordDragEndDropZone>
       <RecordTableVirtualizedDebugHelper />
     </StyledNoRecordGroupContainer>
   );

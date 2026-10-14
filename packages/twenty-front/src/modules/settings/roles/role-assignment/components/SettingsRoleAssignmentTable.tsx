@@ -12,11 +12,12 @@ import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { useMemo, useState } from 'react';
 
-import { H2Title, IconSearch } from 'twenty-ui/display';
+import { Section } from 'twenty-ui/components/layout';
+import { IconSearch } from 'twenty-ui/icon';
 import { type Agent, type ApiKeyForRole } from '~/generated-metadata/graphql';
-import { normalizeSearchText } from '~/utils/normalizeSearchText';
 import { type PartialWorkspaceMember } from '@/settings/roles/types/RoleWithPartialMembers';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
+import { normalizeSearchText } from 'twenty-ui/utilities';
 
 const StyledTable = styled.div`
   border-bottom: 1px solid ${themeCssVariables.border.color.light};
@@ -139,7 +140,7 @@ export const SettingsRoleAssignmentTable = <T extends RoleTargetType>({
 
   return (
     <>
-      <H2Title
+      <Section.Header
         title={t`Assigned ${roleTargetDisplayName}`}
         description={t`This role is assigned to these ${roleTargetDisplayName}.`}
       />

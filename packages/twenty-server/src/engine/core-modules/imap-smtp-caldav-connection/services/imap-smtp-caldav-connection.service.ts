@@ -3,8 +3,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { msg } from '@lingui/core/macro';
 import { ImapFlow } from 'imapflow';
 import { createTransport } from 'nodemailer';
+import { isNonEmptyString } from '@sniptt/guards';
 import { ACCOUNT_TYPES } from 'twenty-shared/constants';
-import { assertUnreachable } from 'twenty-shared/utils';
+import { assertUnreachable, isDefined } from 'twenty-shared/utils';
 
 import { UserInputError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import { type EmailAccountConnectionParametersInput } from 'src/engine/core-modules/imap-smtp-caldav-connection/dtos/imap-smtp-caldav-connection.input';
@@ -12,8 +13,10 @@ import { ImapSmtpCaldavValidatorService } from 'src/engine/core-modules/imap-smt
 import {
   type AccountType,
   type ConnectionParameters,
-  type ImapSmtpCaldavParams,
+  type PlaintextImapSmtpCaldavParams,
 } from 'src/engine/core-modules/imap-smtp-caldav-connection/types/imap-smtp-caldav-connection.type';
+import { buildImapTlsOptions } from 'src/engine/core-modules/imap-smtp-caldav-connection/utils/build-imap-tls-options.util';
+import { buildSmtpTlsOptions } from 'src/engine/core-modules/imap-smtp-caldav-connection/utils/build-smtp-tls-options.util';
 import { SecureHttpClientService } from 'src/engine/core-modules/secure-http-client/secure-http-client.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { CalDavClientService } from 'src/modules/calendar/calendar-event-import-manager/drivers/caldav/services/caldav-client.service';
@@ -41,12 +44,13 @@ export class ImapSmtpCaldavService {
     const client = new ImapFlow({
       host: validatedHost,
       port: params.port,
-      secure: params.secure ?? true,
+      ...buildImapTlsOptions(params.connectionSecurity),
       auth: {
         user: params.username ?? handle,
         pass: params.password,
       },
       logger: false,
+      disableIMAP4rev2: true,
       tls: {
         rejectUnauthorized: false,
       },
@@ -114,6 +118,7 @@ export class ImapSmtpCaldavService {
     const transport = createTransport({
       host: validatedHost,
       port: params.port,
+      ...buildSmtpTlsOptions(params.connectionSecurity),
       auth: {
         user: params.username ?? handle,
         pass: params.password,
@@ -217,9 +222,17 @@ export class ImapSmtpCaldavService {
   }: {
     connectionParameters: EmailAccountConnectionParametersInput;
     handle: string;
-    existingConnectionParameters: ImapSmtpCaldavParams | null;
-  }): Promise<ImapSmtpCaldavParams> {
-    const validatedParams: ImapSmtpCaldavParams = {};
+    existingConnectionParameters: PlaintextImapSmtpCaldavParams | null;
+  }): Promise<PlaintextImapSmtpCaldavParams> {
+    const validatedParams: PlaintextImapSmtpCaldavParams = {};
+
+    if (isDefined(connectionParameters.name)) {
+      const trimmedName = connectionParameters.name.trim();
+
+      validatedParams.name = isNonEmptyString(trimmedName) ? trimmedName : null;
+    } else if (isDefined(existingConnectionParameters?.name)) {
+      validatedParams.name = existingConnectionParameters.name;
+    }
 
     for (const protocol of ACCOUNT_TYPES) {
       const params = connectionParameters[protocol];

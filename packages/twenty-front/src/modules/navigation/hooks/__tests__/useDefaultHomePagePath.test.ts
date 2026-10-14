@@ -2,41 +2,151 @@ import { currentUserState } from '@/auth/states/currentUserState';
 import { currentUserWorkspaceState } from '@/auth/states/currentUserWorkspaceState';
 import { metadataStoreState } from '@/metadata-store/states/metadataStoreState';
 import { useDefaultHomePagePath } from '@/navigation/hooks/useDefaultHomePagePath';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { AggregateOperations } from '@/object-record/record-table/constants/AggregateOperations';
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import { renderHook, waitFor } from '@testing-library/react';
 import { Provider as JotaiProvider } from 'jotai';
 import { createElement, useEffect, type ReactNode } from 'react';
-import { AppPath } from 'twenty-shared/types';
+import { DEFAULT_VIEW_GROUP_LOAD_LIMIT } from 'twenty-shared/constants';
+import { AppPath, SettingsPath } from 'twenty-shared/types';
+import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 import {
-  ViewOpenRecordIn,
+  type NavigationMenuItem,
+  NavigationMenuItemType,
+  ViewKey,
   ViewType,
   ViewVisibility,
 } from '~/generated-metadata/graphql';
 import { mockedUserData } from '~/testing/mock-data/users';
-import { getTestEnrichedObjectMetadataItemsMock } from '~/testing/utils/getTestEnrichedObjectMetadataItemsMock';
 import { getMockObjectMetadataItemOrThrow } from '~/testing/utils/getMockObjectMetadataItemOrThrow';
-import { setTestViewsInMetadataStore } from '~/testing/utils/setTestViewsInMetadataStore';
+import { getTestEnrichedObjectMetadataItemsMock } from '~/testing/utils/getTestEnrichedObjectMetadataItemsMock';
 import { setTestObjectMetadataItemsInMetadataStore } from '~/testing/utils/setTestObjectMetadataItemsInMetadataStore';
+import { setTestViewsInMetadataStore } from '~/testing/utils/setTestViewsInMetadataStore';
+
+let mockIsMobile = false;
+
+jest.mock('twenty-ui/utilities', () => ({
+  ...jest.requireActual('twenty-ui/utilities'),
+  useIsMobile: () => mockIsMobile,
+}));
 
 const Wrapper = ({ children }: { children: ReactNode }) =>
   createElement(JotaiProvider, { store: jotaiStore }, children);
+
+const buildObjectNavigationMenuItem = (
+  objectNameSingular: string,
+  position: number,
+  folderId?: string,
+): NavigationMenuItem => ({
+  __typename: 'NavigationMenuItem',
+  id: `navigation-menu-item-${objectNameSingular}`,
+  type: NavigationMenuItemType.OBJECT,
+  targetObjectMetadataId:
+    getMockObjectMetadataItemOrThrow(objectNameSingular).id,
+  position,
+  folderId,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+});
+
+const buildFolderNavigationMenuItem = (
+  id: string,
+  position: number,
+): NavigationMenuItem => ({
+  __typename: 'NavigationMenuItem',
+  id,
+  type: NavigationMenuItemType.FOLDER,
+  name: 'Folder',
+  position,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+});
+
+const buildPageLayoutNavigationMenuItem = (
+  pageLayoutId: string,
+  position: number,
+): NavigationMenuItem => ({
+  __typename: 'NavigationMenuItem',
+  id: `navigation-menu-item-page-layout-${pageLayoutId}`,
+  type: NavigationMenuItemType.PAGE_LAYOUT,
+  pageLayoutId,
+  position,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+});
+
+const buildLinkNavigationMenuItem = (position: number): NavigationMenuItem => ({
+  __typename: 'NavigationMenuItem',
+  id: `navigation-menu-item-link-${position}`,
+  type: NavigationMenuItemType.LINK,
+  link: 'https://example.com',
+  position,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+});
+
+const buildViewNavigationMenuItem = (
+  viewId: string,
+  position: number,
+): NavigationMenuItem => ({
+  __typename: 'NavigationMenuItem',
+  id: `navigation-menu-item-view-${viewId}`,
+  type: NavigationMenuItemType.VIEW,
+  viewId,
+  position,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+});
+
+const buildCompanyView = (
+  id: string,
+  key: ViewKey | null,
+  position: number,
+) => ({
+  id,
+  name: 'Company view',
+  objectMetadataId: getMockObjectMetadataItemOrThrow('company').id,
+  type: ViewType.TABLE,
+  key,
+  isCompact: false,
+  viewFields: [],
+  viewFieldGroups: [],
+  viewGroups: [],
+  viewSorts: [],
+  viewFilters: [],
+  viewFilterGroups: [],
+  kanbanAggregateOperation: AggregateOperations.COUNT,
+  icon: '',
+  kanbanAggregateOperationFieldMetadataId: '',
+  position,
+  visibility: ViewVisibility.WORKSPACE,
+  createdByUserWorkspaceId: null,
+  shouldHideEmptyGroups: false,
+  groupLoadLimit: DEFAULT_VIEW_GROUP_LOAD_LIMIT,
+  isActive: true,
+});
 
 const renderHooks = ({
   withCurrentUser,
   withExistingView,
   withObjectMetadataLoaded = true,
+  objectMetadataItems = getTestEnrichedObjectMetadataItemsMock(),
+  navigationMenuItems = [],
+  withNavigationMenuItemsLoaded = true,
+  views,
 }: {
   withCurrentUser: boolean;
   withExistingView: boolean;
   withObjectMetadataLoaded?: boolean;
+  objectMetadataItems?: EnrichedObjectMetadataItem[];
+  navigationMenuItems?: NavigationMenuItem[];
+  withNavigationMenuItemsLoaded?: boolean;
+  views?: Parameters<typeof setTestViewsInMetadataStore>[1];
 }) => {
   if (withObjectMetadataLoaded) {
-    setTestObjectMetadataItemsInMetadataStore(
-      jotaiStore,
-      getTestEnrichedObjectMetadataItemsMock(),
-    );
+    setTestObjectMetadataItemsInMetadataStore(jotaiStore, objectMetadataItems);
   } else {
     jotaiStore.set(metadataStoreState.atomFamily('objectMetadataItems'), {
       current: [],
@@ -44,6 +154,12 @@ const renderHooks = ({
       status: 'empty',
     });
   }
+
+  jotaiStore.set(metadataStoreState.atomFamily('navigationMenuItems'), {
+    current: navigationMenuItems,
+    draft: [],
+    status: withNavigationMenuItemsLoaded ? 'up-to-date' : 'empty',
+  });
 
   const { result } = renderHook(
     () => {
@@ -53,7 +169,9 @@ const renderHooks = ({
       );
 
       useEffect(() => {
-        if (withExistingView) {
+        if (isDefined(views)) {
+          setTestViewsInMetadataStore(jotaiStore, views);
+        } else if (withExistingView) {
           setTestViewsInMetadataStore(jotaiStore, [
             {
               id: 'viewId',
@@ -62,7 +180,6 @@ const renderHooks = ({
               type: ViewType.TABLE,
               key: null,
               isCompact: false,
-              openRecordIn: ViewOpenRecordIn.SIDE_PANEL,
               viewFields: [],
               viewFieldGroups: [],
               viewGroups: [],
@@ -76,6 +193,8 @@ const renderHooks = ({
               visibility: ViewVisibility.WORKSPACE,
               createdByUserWorkspaceId: null,
               shouldHideEmptyGroups: false,
+              groupLoadLimit: DEFAULT_VIEW_GROUP_LOAD_LIMIT,
+              isActive: true,
             },
           ]);
         } else {
@@ -98,6 +217,10 @@ const renderHooks = ({
 };
 
 describe('useDefaultHomePagePath', () => {
+  afterEach(() => {
+    mockIsMobile = false;
+  });
+
   it('should return proper path when no currentUser', async () => {
     const { result } = renderHooks({
       withCurrentUser: false,
@@ -118,20 +241,68 @@ describe('useDefaultHomePagePath', () => {
       expect(result.current.defaultHomePagePath).toEqual(AppPath.SignInUp);
     });
   });
-  it('should return proper path when currentUser is defined', async () => {
+  it('should redirect to the first object of the navigation menu', async () => {
     const { result } = renderHooks({
       withCurrentUser: true,
       withExistingView: false,
+      navigationMenuItems: [
+        buildObjectNavigationMenuItem('person', 0),
+        buildObjectNavigationMenuItem('company', 1),
+      ],
     });
 
     await waitFor(() => {
-      expect(result.current.defaultHomePagePath).toEqual('/objects/companies');
+      expect(result.current.defaultHomePagePath).toEqual('/objects/people');
     });
   });
-  it('should return proper path when currentUser is defined and view exists', async () => {
+  it('should honor display order over a lower-positioned item nested in a folder', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      navigationMenuItems: [
+        buildObjectNavigationMenuItem('company', 0, 'folder-1'),
+        buildObjectNavigationMenuItem('person', 1),
+        buildFolderNavigationMenuItem('folder-1', 2),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual('/objects/people');
+    });
+  });
+  it('should redirect to a PAGE_LAYOUT navigation menu item as homepage', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      navigationMenuItems: [
+        buildPageLayoutNavigationMenuItem('page-layout-1', 0),
+        buildObjectNavigationMenuItem('person', 1),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual('/page/page-layout-1');
+    });
+  });
+  it('should skip a LINK navigation menu item and use the next valid item', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      navigationMenuItems: [
+        buildLinkNavigationMenuItem(0),
+        buildObjectNavigationMenuItem('person', 1),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual('/objects/people');
+    });
+  });
+  it('should honor the view of a VIEW navigation menu item', async () => {
     const { result } = renderHooks({
       withCurrentUser: true,
       withExistingView: true,
+      navigationMenuItems: [buildViewNavigationMenuItem('viewId', 0)],
     });
 
     await waitFor(() => {
@@ -140,14 +311,106 @@ describe('useDefaultHomePagePath', () => {
       );
     });
   });
-  // Regression: during the post-login transition window object metadata may
-  // not yet be loaded. We must not redirect the user to /settings/profile
-  // (the genuine empty-fallback) until metadata has actually loaded.
+  it('should fall back to the first readable object when the menu has no object item', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      navigationMenuItems: [],
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual('/objects/companies');
+    });
+  });
+  it('should target the initial view rather than the index view when the menu has no object item', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      navigationMenuItems: [],
+      views: [
+        buildCompanyView('index-view-id', ViewKey.INDEX, 0),
+        buildCompanyView('initial-view-id', null, 1),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual(
+        '/objects/companies?viewId=initial-view-id',
+      );
+    });
+  });
+
+  it('should redirect to profile settings when there is no readable object', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      objectMetadataItems: [],
+      navigationMenuItems: [],
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual(
+        getSettingsPath(SettingsPath.ProfilePage),
+      );
+    });
+  });
+  // Metadata may not be loaded yet right after login; don't fall back to /settings/profile.
   it('should defer to AppPath.Index when currentUser is defined but object metadata is not loaded yet', async () => {
     const { result } = renderHooks({
       withCurrentUser: true,
       withExistingView: false,
       withObjectMetadataLoaded: false,
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual(AppPath.Index);
+    });
+  });
+  it('should defer to AppPath.Index when navigation menu items are not loaded yet', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      navigationMenuItems: [buildObjectNavigationMenuItem('person', 0)],
+      withNavigationMenuItemsLoaded: false,
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual(AppPath.Index);
+    });
+  });
+  it('should return the mobile home page on mobile', async () => {
+    mockIsMobile = true;
+
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      navigationMenuItems: [buildObjectNavigationMenuItem('person', 0)],
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual(AppPath.Home);
+    });
+  });
+  it('should still return the sign in page on mobile when there is no currentUser', async () => {
+    mockIsMobile = true;
+    jotaiStore.set(currentUserState.atom, null);
+
+    const { result } = renderHooks({
+      withCurrentUser: false,
+      withExistingView: false,
+    });
+
+    await waitFor(() => {
+      expect(result.current.defaultHomePagePath).toEqual(AppPath.SignInUp);
+    });
+  });
+  it('should defer to AppPath.Index when object metadata is loaded but empty while navigation menu items are not loaded yet', async () => {
+    const { result } = renderHooks({
+      withCurrentUser: true,
+      withExistingView: false,
+      objectMetadataItems: [],
+      navigationMenuItems: [],
+      withNavigationMenuItemsLoaded: false,
     });
 
     await waitFor(() => {

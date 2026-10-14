@@ -1,3 +1,4 @@
+import { SpreadsheetImportStepBody } from '@/spreadsheet-import/components/SpreadsheetImportStepBody';
 import { SpreadsheetImportTable } from '@/spreadsheet-import/components/SpreadsheetImportTable';
 import { StepNavigationButton } from '@/spreadsheet-import/components/StepNavigationButton';
 import { useHideStepBar } from '@/spreadsheet-import/hooks/useHideStepBar';
@@ -21,13 +22,11 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { ModalContent } from 'twenty-ui/layout';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-// @ts-expect-error Todo: remove usage of react-data-grid`
+import { themeCssVariables } from 'twenty-ui/theme';
 import { type RowsChangeData } from 'react-data-grid';
 import { isDefined } from 'twenty-shared/utils';
-import { IconTrash } from 'twenty-ui/display';
-import { Button, Toggle } from 'twenty-ui/input';
+import { IconTrash } from 'twenty-ui/icon';
+import { Button, Switch } from 'twenty-ui/primitives/input';
 import { generateColumns } from './components/columns';
 import { type ImportedStructuredRowMetadata } from './types';
 
@@ -62,13 +61,13 @@ const StyledButtonContainer = styled.div`
   }
 `;
 
-const StyledErrorToggle = styled.div`
+const StyledErrorSwitch = styled.div`
   align-items: center;
   display: flex;
   flex-direction: row;
 `;
 
-const StyledErrorToggleDescription = styled.span`
+const StyledErrorSwitchDescription = styled.span`
   color: ${themeCssVariables.font.color.secondary};
   font-size: ${themeCssVariables.font.size.md};
   font-weight: ${themeCssVariables.font.weight.regular};
@@ -199,7 +198,7 @@ export const ValidationStep = ({
           if (!hasBeenImported) return null;
           return column;
         })
-        .filter(Boolean),
+        .filter(isDefined),
     [fields, importedColumns],
   );
 
@@ -278,7 +277,7 @@ export const ValidationStep = ({
           { title: t`Cancel` },
           {
             title: t`Submit`,
-            variant: 'primary',
+            variant: 'outline',
             onClick: submitData,
             role: 'confirm',
           },
@@ -289,7 +288,7 @@ export const ValidationStep = ({
 
   return (
     <>
-      <ModalContent noPadding>
+      <SpreadsheetImportStepBody>
         <StyledContentWrapper>
           {filterByErrors && tableData.length === 0 ? (
             <StyledNoRowsWithErrorsContainer>
@@ -305,7 +304,7 @@ export const ValidationStep = ({
                 columns={columns}
                 selectedRows={selectedRows}
                 onSelectedRowsChange={setSelectedRows as any} // TODO: replace 'any'
-                components={{
+                renderers={{
                   noRowsFallback: (
                     <StyledNoRowsContainer>
                       {filterByErrors
@@ -318,28 +317,27 @@ export const ValidationStep = ({
             </StyledScrollContainer>
           )}
           <StyledToolbar>
-            <StyledErrorToggle>
-              <Toggle
-                value={filterByErrors}
-                onChange={() => setFilterByErrors(!filterByErrors)}
-                toggleSize="small"
+            <StyledErrorSwitch>
+              <Switch
+                aria-label={t`Show only rows with errors`}
+                checked={filterByErrors}
+                onCheckedChange={() => setFilterByErrors(!filterByErrors)}
+                size="sm"
               />
-              <StyledErrorToggleDescription>
+              <StyledErrorSwitchDescription>
                 <Trans>Show only rows with errors</Trans>
-              </StyledErrorToggleDescription>
-            </StyledErrorToggle>
+              </StyledErrorSwitchDescription>
+            </StyledErrorSwitch>
             <StyledButtonContainer>
               <Button
-                Icon={IconTrash}
-                title={t`Remove`}
-                accent="default"
+                startIcon={<IconTrash />}
                 onClick={deleteSelectedRows}
                 disabled={selectedRows.size === 0}
-              />
+              >{t`Remove`}</Button>
             </StyledButtonContainer>
           </StyledToolbar>
         </StyledContentWrapper>
-      </ModalContent>
+      </SpreadsheetImportStepBody>
       <StepNavigationButton
         onContinue={onContinue}
         onBack={onBack}

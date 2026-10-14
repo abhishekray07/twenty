@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { useLogicFunctionForm } from '@/logic-functions/hooks/useLogicFunctionForm';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
@@ -6,8 +6,8 @@ import { SettingsLogicFunctionLabelContainer } from '@/settings/logic-functions/
 import { SettingsLogicFunctionSettingsTab } from '@/settings/logic-functions/components/tabs/SettingsLogicFunctionSettingsTab';
 import { SettingsLogicFunctionTestTab } from '@/settings/logic-functions/components/tabs/SettingsLogicFunctionTestTab';
 import { SettingsLogicFunctionTriggersTab } from '@/settings/logic-functions/components/tabs/SettingsLogicFunctionTriggersTab';
-import { SubMenuTopBarContainer } from '@/ui/layout/page/components/SubMenuTopBarContainer';
-import { TabList } from '@/ui/layout/tab-list/components/TabList';
+import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
+import { SettingsTabBar } from '@/settings/components/layout/SettingsTabBar';
 import { activeTabIdComponentState } from '@/ui/layout/tab-list/states/activeTabIdComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { t } from '@lingui/core/macro';
@@ -18,7 +18,7 @@ import {
   IconCode,
   IconPlayerPlay,
   IconSettings,
-} from 'twenty-ui/display';
+} from 'twenty-ui/icon';
 import { useQuery } from '@apollo/client/react';
 import { FindOneApplicationDocument } from '~/generated-metadata/graphql';
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
@@ -31,6 +31,7 @@ const LOGIC_FUNCTION_DETAIL_ID = 'logic-function-detail';
 export const SettingsLogicFunctionDetail = () => {
   const { logicFunctionId = '', applicationId } = useParams();
 
+  const location = useLocation();
   const navigate = useNavigate();
   const currentWorkspace = useAtomStateValue(currentWorkspaceState);
 
@@ -70,8 +71,13 @@ export const SettingsLogicFunctionDetail = () => {
     logicFunctionId,
   });
 
+  const canTestFunction = logicFunction?.canRunOnDemand ?? false;
+
   const handleTestFunction = async () => {
-    navigate('#test');
+    navigate(
+      { search: location.search, hash: '#test' },
+      { state: location.state },
+    );
     await executeLogicFunction();
   };
 
@@ -84,14 +90,20 @@ export const SettingsLogicFunctionDetail = () => {
       hide: isReadonly,
     },
     { id: 'settings', title: t`Settings`, Icon: IconSettings },
-    { id: 'test', title: t`Test`, Icon: IconPlayerPlay },
+    {
+      id: 'test',
+      title: t`Test`,
+      Icon: IconPlayerPlay,
+      disabled: !canTestFunction,
+      hide: !canTestFunction,
+    },
     { id: 'triggers', title: t`Triggers`, Icon: IconBolt },
   ];
 
   const isEditorTab = activeTabId === 'editor';
   const isTriggersTab = activeTabId === 'triggers';
   const isSettingsTab = activeTabId === 'settings';
-  const isTestTab = activeTabId === 'test';
+  const isTestTab = activeTabId === 'test' && canTestFunction;
 
   const breadcrumbLinks = isDefined(applicationId)
     ? (() => {
@@ -104,7 +116,7 @@ export const SettingsLogicFunctionDetail = () => {
         return [
           {
             children: t`Workspace`,
-            href: getSettingsPath(SettingsPath.Workspace),
+            href: getSettingsPath(SettingsPath.General),
           },
           {
             children: t`Applications`,
@@ -118,7 +130,7 @@ export const SettingsLogicFunctionDetail = () => {
     : [
         {
           children: t`Workspace`,
-          href: getSettingsPath(SettingsPath.Workspace),
+          href: getSettingsPath(SettingsPath.General),
         },
         {
           children: t`AI`,
@@ -139,7 +151,8 @@ export const SettingsLogicFunctionDetail = () => {
   return (
     !loading &&
     !applicationLoading && (
-      <SubMenuTopBarContainer
+      <SettingsPageLayout
+        pageTitle={formValues.name}
         title={
           <SettingsLogicFunctionLabelContainer
             value={formValues.name}
@@ -148,9 +161,15 @@ export const SettingsLogicFunctionDetail = () => {
           />
         }
         links={breadcrumbLinks}
+        secondaryBar={
+          <SettingsTabBar
+            aria-label={t`Function details`}
+            tabs={tabs}
+            componentInstanceId={instanceId}
+          />
+        }
       >
         <SettingsPageContainer>
-          <TabList tabs={tabs} componentInstanceId={instanceId} />
           {isEditorTab && (
             <SettingsLogicFunctionCodeEditorTab
               files={files}
@@ -184,7 +203,7 @@ export const SettingsLogicFunctionDetail = () => {
             />
           )}
         </SettingsPageContainer>
-      </SubMenuTopBarContainer>
+      </SettingsPageLayout>
     )
   );
 };

@@ -10,12 +10,24 @@ on:
     branches: ['main']
     paths:
       - 'packages/twenty-docs/**/*.mdx'
-      - '!packages/twenty-docs/l/**'
+      - '!packages/twenty-docs/ar/**'
+      - '!packages/twenty-docs/cs/**'
+      - '!packages/twenty-docs/de/**'
+      - '!packages/twenty-docs/es/**'
+      - '!packages/twenty-docs/fr/**'
+      - '!packages/twenty-docs/it/**'
+      - '!packages/twenty-docs/ja/**'
+      - '!packages/twenty-docs/ko/**'
+      - '!packages/twenty-docs/pt/**'
+      - '!packages/twenty-docs/ro/**'
+      - '!packages/twenty-docs/ru/**'
+      - '!packages/twenty-docs/tr/**'
+      - '!packages/twenty-docs/zh/**'
       - 'packages/twenty-docs/navigation/navigation.template.json'
       - '.github/crowdin-docs.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -39,6 +51,7 @@ jobs:
         uses: crowdin/github-action@8868a33591d21088edfc398968173a3b98d51706 # v2
         with:
           upload_sources: true
+          upload_sources_args: '--delete-obsolete'
           upload_translations: false
           download_translations: false
           localization_branch_name: i18n-docs

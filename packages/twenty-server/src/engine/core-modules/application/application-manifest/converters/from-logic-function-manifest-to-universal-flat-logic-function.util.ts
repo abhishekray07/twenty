@@ -1,21 +1,75 @@
 import { parse } from 'path';
 
+import { isNonEmptyString } from '@sniptt/guards';
 import { type LogicFunctionManifest } from 'twenty-shared/application';
+import { isDefined } from 'twenty-shared/utils';
 
-import { LogicFunctionRuntime } from 'src/engine/metadata-modules/logic-function/logic-function.entity';
+import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
+import { IDENTIFY_ACCOUNT_TIMEOUT_SECONDS } from 'src/engine/core-modules/application/connection-provider/constants/identify-account-timeout-seconds.constant';
+import { isPackagedApplicationSource } from 'src/engine/core-modules/application/application-registration/utils/is-packaged-application-source.util';
+import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
+import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
+import {
+  LogicFunctionExecutionMode,
+  LogicFunctionRuntime,
+} from 'src/engine/metadata-modules/logic-function/logic-function.entity';
 import { type UniversalFlatLogicFunction } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-logic-function.type';
+
+const resolveExecutionMode = ({
+  logicFunctionManifest,
+  applicationSourceType,
+  existingFlatLogicFunctionMaps,
+}: {
+  logicFunctionManifest: LogicFunctionManifest;
+  applicationSourceType: ApplicationRegistrationSourceType;
+  existingFlatLogicFunctionMaps: AllFlatEntityMaps['flatLogicFunctionMaps'];
+}): LogicFunctionExecutionMode => {
+  const existingFlatLogicFunction = findFlatEntityByUniversalIdentifier({
+    flatEntityMaps: existingFlatLogicFunctionMaps,
+    universalIdentifier: logicFunctionManifest.universalIdentifier,
+  });
+
+  if (isDefined(existingFlatLogicFunction)) {
+    if (
+      existingFlatLogicFunction.executionMode ===
+        LogicFunctionExecutionMode.PREBUILT &&
+      !isNonEmptyString(logicFunctionManifest.builtHandlerChecksum)
+    ) {
+      return LogicFunctionExecutionMode.LIVE;
+    }
+
+    return existingFlatLogicFunction.executionMode;
+  }
+
+  if (
+    isPackagedApplicationSource(applicationSourceType) &&
+    isNonEmptyString(logicFunctionManifest.builtHandlerChecksum)
+  ) {
+    return LogicFunctionExecutionMode.PREBUILT;
+  }
+
+  return LogicFunctionExecutionMode.LIVE;
+};
 
 export const fromLogicFunctionManifestToUniversalFlatLogicFunction = ({
   logicFunctionManifest,
   applicationUniversalIdentifier,
+  applicationSourceType,
+  existingFlatLogicFunctionMaps,
+  identifyAccountLogicFunctionUniversalIdentifiers,
   now,
 }: {
   logicFunctionManifest: LogicFunctionManifest;
   applicationUniversalIdentifier: string;
+  applicationSourceType: ApplicationRegistrationSourceType;
+  existingFlatLogicFunctionMaps: AllFlatEntityMaps['flatLogicFunctionMaps'];
+  identifyAccountLogicFunctionUniversalIdentifiers: Set<string>;
   now: string;
 }): UniversalFlatLogicFunction => {
   const name =
     logicFunctionManifest.name ?? parse(logicFunctionManifest.handlerName).name;
+
+  const timeoutSeconds = logicFunctionManifest.timeoutSeconds ?? 300;
 
   return {
     universalIdentifier: logicFunctionManifest.universalIdentifier,
@@ -23,7 +77,11 @@ export const fromLogicFunctionManifestToUniversalFlatLogicFunction = ({
     name,
     description: logicFunctionManifest.description ?? null,
     runtime: LogicFunctionRuntime.NODE22,
-    timeoutSeconds: logicFunctionManifest.timeoutSeconds ?? 300,
+    timeoutSeconds: identifyAccountLogicFunctionUniversalIdentifiers.has(
+      logicFunctionManifest.universalIdentifier,
+    )
+      ? Math.min(timeoutSeconds, IDENTIFY_ACCOUNT_TIMEOUT_SECONDS)
+      : timeoutSeconds,
     sourceHandlerPath: logicFunctionManifest.sourceHandlerPath,
     builtHandlerPath: logicFunctionManifest.builtHandlerPath,
     handlerName: logicFunctionManifest.handlerName,
@@ -33,10 +91,17 @@ export const fromLogicFunctionManifestToUniversalFlatLogicFunction = ({
       logicFunctionManifest.databaseEventTriggerSettings ?? null,
     httpRouteTriggerSettings:
       logicFunctionManifest.httpRouteTriggerSettings ?? null,
+    serverRouteTriggerSettings:
+      logicFunctionManifest.serverRouteTriggerSettings ?? null,
     toolTriggerSettings: logicFunctionManifest.toolTriggerSettings ?? null,
     workflowActionTriggerSettings:
       logicFunctionManifest.workflowActionTriggerSettings ?? null,
     isBuildUpToDate: true,
+    executionMode: resolveExecutionMode({
+      logicFunctionManifest,
+      applicationSourceType,
+      existingFlatLogicFunctionMaps,
+    }),
     createdAt: now,
     updatedAt: now,
     deletedAt: null,

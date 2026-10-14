@@ -8,10 +8,14 @@ import { computeStandardBlocklistViewFields } from 'src/engine/workspace-manager
 import { computeStandardCalendarChannelEventAssociationViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-calendar-channel-event-association-view-fields.util';
 import { computeStandardCalendarEventParticipantViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-calendar-event-participant-view-fields.util';
 import { computeStandardCalendarEventViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-calendar-event-view-fields.util';
+import { computeStandardCallRecordingViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-call-recording-view-fields.util';
 import { computeStandardCompanyViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-company-view-fields.util';
 import { computeStandardDashboardViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-dashboard-view-fields.util';
+import { computeStandardMessageCampaignViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-campaign-view-fields.util';
 import { computeStandardMessageChannelMessageAssociationMessageFolderViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-channel-message-association-message-folder-view-fields.util';
 import { computeStandardMessageChannelMessageAssociationViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-channel-message-association-view-fields.util';
+import { computeStandardMessageListViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-list-view-fields.util';
+import { computeStandardMessageListMemberViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-list-member-view-fields.util';
 import { computeStandardMessageParticipantViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-participant-view-fields.util';
 import { computeStandardMessageThreadViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-thread-view-fields.util';
 import { computeStandardMessageViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-view-fields.util';
@@ -40,13 +44,17 @@ const STANDARD_FLAT_VIEW_FIELD_METADATA_BUILDERS_BY_OBJECT_NAME = {
     computeStandardCalendarChannelEventAssociationViewFields,
   calendarEvent: computeStandardCalendarEventViewFields,
   calendarEventParticipant: computeStandardCalendarEventParticipantViewFields,
+  callRecording: computeStandardCallRecordingViewFields,
   company: computeStandardCompanyViewFields,
   dashboard: computeStandardDashboardViewFields,
   message: computeStandardMessageViewFields,
+  messageCampaign: computeStandardMessageCampaignViewFields,
   messageChannelMessageAssociation:
     computeStandardMessageChannelMessageAssociationViewFields,
   messageChannelMessageAssociationMessageFolder:
     computeStandardMessageChannelMessageAssociationMessageFolderViewFields,
+  messageList: computeStandardMessageListViewFields,
+  messageListMember: computeStandardMessageListMemberViewFields,
   messageParticipant: computeStandardMessageParticipantViewFields,
   messageThread: computeStandardMessageThreadViewFields,
   note: computeStandardNoteViewFields,

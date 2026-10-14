@@ -81,12 +81,30 @@ export class WorkspaceSchemaIndexManagerService {
     queryRunner,
     schemaName,
     indexName,
+    concurrently = false,
   }: {
     queryRunner: QueryRunner;
     schemaName: string;
     indexName: string;
+    concurrently?: boolean;
   }): Promise<void> {
-    const sql = `DROP INDEX IF EXISTS ${escapeIdentifier(schemaName)}.${escapeIdentifier(indexName)}`;
+    const sql = `DROP INDEX ${concurrently ? 'CONCURRENTLY ' : ''}IF EXISTS ${escapeIdentifier(schemaName)}.${escapeIdentifier(indexName)}`;
+
+    await queryRunner.query(sql);
+  }
+
+  async renameIndexWithoutRebuild({
+    queryRunner,
+    schemaName,
+    fromIndexName,
+    toIndexName,
+  }: {
+    queryRunner: QueryRunner;
+    schemaName: string;
+    fromIndexName: string;
+    toIndexName: string;
+  }): Promise<void> {
+    const sql = `ALTER INDEX ${escapeIdentifier(schemaName)}.${escapeIdentifier(fromIndexName)} RENAME TO ${escapeIdentifier(toIndexName)}`;
 
     await queryRunner.query(sql);
   }

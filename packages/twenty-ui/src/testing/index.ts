@@ -7,6 +7,7 @@
  *                              |___/
  */
 
+export { A11Y_DEFER_COLOR_CONTRAST } from './a11yParameters';
 export { ComponentStorybookLayout } from './ComponentStorybookLayout';
 export type {
   CatalogDimension,
@@ -14,13 +15,6 @@ export type {
 } from './decorators/CatalogDecorator';
 export { CatalogDecorator } from './decorators/CatalogDecorator';
 export { ComponentDecorator } from './decorators/ComponentDecorator';
-export type { RouteParams } from './decorators/ComponentWithRouterDecorator';
-export {
-  isRouteParams,
-  computeLocation,
-  ComponentWithRouterDecorator,
-} from './decorators/ComponentWithRouterDecorator';
-export { JotaiRootDecorator } from './decorators/JotaiRootDecorator';
-export { RouterDecorator } from './decorators/RouterDecorator';
 export { AVATAR_URL_MOCK } from './mocks/avatarUrlMock';
 export type { CatalogStory } from './types/CatalogStory';
+export { overrideMediaQueryMatches } from './utils/overrideMediaQueryMatches';

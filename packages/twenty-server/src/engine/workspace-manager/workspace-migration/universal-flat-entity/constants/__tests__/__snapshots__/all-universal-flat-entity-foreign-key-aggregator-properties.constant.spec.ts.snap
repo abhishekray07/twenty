@@ -13,7 +13,9 @@ exports[`ALL_UNIVERSAL_FLAT_ENTITY_FOREIGN_KEY_AGGREGATOR_PROPERTIES should matc
     "viewFilterUniversalIdentifiers",
     "kanbanAggregateOperationViewUniversalIdentifiers",
     "calendarViewUniversalIdentifiers",
+    "calendarEndViewUniversalIdentifiers",
     "mainGroupByFieldMetadataViewUniversalIdentifiers",
+    "searchFieldMetadataUniversalIdentifiers",
   ],
   "fieldPermission": [],
   "frontComponent": [],
@@ -26,10 +28,15 @@ exports[`ALL_UNIVERSAL_FLAT_ENTITY_FOREIGN_KEY_AGGREGATOR_PROPERTIES should matc
     "objectPermissionUniversalIdentifiers",
     "fieldPermissionUniversalIdentifiers",
     "viewUniversalIdentifiers",
+    "searchFieldMetadataUniversalIdentifiers",
+    "pageLayoutUniversalIdentifiers",
+    "commandMenuItemUniversalIdentifiers",
+    "navigationMenuItemUniversalIdentifiers",
   ],
   "objectPermission": [],
   "pageLayout": [
     "tabUniversalIdentifiers",
+    "navigationMenuItemUniversalIdentifiers",
   ],
   "pageLayoutTab": [
     "widgetUniversalIdentifiers",
@@ -53,7 +60,11 @@ exports[`ALL_UNIVERSAL_FLAT_ENTITY_FOREIGN_KEY_AGGREGATOR_PROPERTIES should matc
     "childRowLevelPermissionPredicateGroupUniversalIdentifiers",
     "rowLevelPermissionPredicateUniversalIdentifiers",
   ],
+  "searchFieldMetadata": [],
+  "settingsMenuItem": [],
   "skill": [],
+  "timelineActivityType": [],
+  "validationRule": [],
   "view": [
     "viewFieldUniversalIdentifiers",
     "viewFilterUniversalIdentifiers",
@@ -61,6 +72,7 @@ exports[`ALL_UNIVERSAL_FLAT_ENTITY_FOREIGN_KEY_AGGREGATOR_PROPERTIES should matc
     "viewGroupUniversalIdentifiers",
     "viewFieldGroupUniversalIdentifiers",
     "viewSortUniversalIdentifiers",
+    "navigationMenuItemUniversalIdentifiers",
   ],
   "viewField": [],
   "viewFieldGroup": [
@@ -74,5 +86,7 @@ exports[`ALL_UNIVERSAL_FLAT_ENTITY_FOREIGN_KEY_AGGREGATOR_PROPERTIES should matc
   "viewGroup": [],
   "viewSort": [],
   "webhook": [],
+  "workflow": [],
+  "workflowVersion": [],
 }
 `;

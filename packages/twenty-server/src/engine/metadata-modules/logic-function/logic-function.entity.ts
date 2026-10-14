@@ -12,6 +12,7 @@ import {
   CronTriggerSettings,
   DatabaseEventTriggerSettings,
   HttpRouteTriggerSettings,
+  ServerRouteTriggerSettings,
   ToolTriggerSettings,
   WorkflowActionTriggerSettings,
 } from 'twenty-shared/application';
@@ -26,7 +27,13 @@ export enum LogicFunctionRuntime {
   NODE22 = 'nodejs22.x',
 }
 
+export enum LogicFunctionExecutionMode {
+  LIVE = 'LIVE',
+  PREBUILT = 'PREBUILT',
+}
+
 @Entity('logicFunction')
+@Index('IDX_LOGIC_FUNCTION_APPLICATION_ID', ['applicationId'])
 @Index('IDX_LOGIC_FUNCTION_ID_DELETED_AT', ['id', 'deletedAt'])
 export class LogicFunctionEntity
   extends SyncableEntity
@@ -63,6 +70,14 @@ export class LogicFunctionEntity
   @Column({ nullable: false, type: 'boolean', default: true })
   isBuildUpToDate: boolean;
 
+  @Column({
+    type: 'enum',
+    enum: LogicFunctionExecutionMode,
+    default: LogicFunctionExecutionMode.LIVE,
+    nullable: false,
+  })
+  executionMode: LogicFunctionExecutionMode;
+
   @Column({ nullable: true, type: 'jsonb' })
   cronTriggerSettings: JsonbProperty<CronTriggerSettings> | null;
 
@@ -71,6 +86,9 @@ export class LogicFunctionEntity
 
   @Column({ nullable: true, type: 'jsonb' })
   httpRouteTriggerSettings: JsonbProperty<HttpRouteTriggerSettings> | null;
+
+  @Column({ nullable: true, type: 'jsonb' })
+  serverRouteTriggerSettings: JsonbProperty<ServerRouteTriggerSettings> | null;
 
   @Column({ nullable: true, type: 'jsonb' })
   toolTriggerSettings: JsonbProperty<ToolTriggerSettings> | null;

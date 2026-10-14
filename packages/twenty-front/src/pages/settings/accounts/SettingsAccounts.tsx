@@ -1,51 +1,39 @@
-import { SettingsPath } from 'twenty-shared/types';
-import { SettingsSectionSkeletonLoader } from '@/settings/components/SettingsSectionSkeletonLoader';
-import { SettingsAccountsBlocklistSection } from '@/settings/accounts/components/SettingsAccountsBlocklistSection';
-import { SettingsAccountsConnectedAccountsListCard } from '@/settings/accounts/components/SettingsAccountsConnectedAccountsListCard';
-import { SettingsAccountsSettingsSection } from '@/settings/accounts/components/SettingsAccountsSettingsSection';
-import { useMyConnectedAccounts } from '@/settings/accounts/hooks/useMyConnectedAccounts';
+import { SettingsAccountsLegacySections } from '@/settings/accounts/components/SettingsAccountsLegacySections';
+import { SettingsAppPreferencesSections } from '@/settings/app-preferences/components/SettingsAppPreferencesSections';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
-import { SubMenuTopBarContainer } from '@/ui/layout/page/components/SubMenuTopBarContainer';
+import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
+import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
 import { useLingui } from '@lingui/react/macro';
+import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
-import { H2Title } from 'twenty-ui/display';
-import { Section } from 'twenty-ui/layout';
+import { FeatureFlagKey } from '~/generated-metadata/graphql';
 
 export const SettingsAccounts = () => {
   const { t } = useLingui();
 
-  const { accounts: allAccounts, loading } = useMyConnectedAccounts();
+  const isAppPreferencesEnabled = useIsFeatureEnabled(
+    FeatureFlagKey.IS_APP_PREFERENCES_ENABLED,
+  );
+  const pageTitle = isAppPreferencesEnabled ? t`App preferences` : t`Account`;
 
   return (
-    <SubMenuTopBarContainer
-      title={t`Account`}
+    <SettingsPageLayout
+      title={pageTitle}
       links={[
         {
           children: t`User`,
           href: getSettingsPath(SettingsPath.ProfilePage),
         },
-        { children: t`Account` },
+        { children: pageTitle },
       ]}
     >
       <SettingsPageContainer>
-        {loading ? (
-          <SettingsSectionSkeletonLoader />
+        {isAppPreferencesEnabled ? (
+          <SettingsAppPreferencesSections />
         ) : (
-          <>
-            <Section>
-              <H2Title
-                title={t`Connected accounts`}
-                description={t`Manage your internet accounts.`}
-              />
-              <SettingsAccountsConnectedAccountsListCard
-                accounts={allAccounts}
-              />
-            </Section>
-            <SettingsAccountsBlocklistSection />
-            <SettingsAccountsSettingsSection />
-          </>
+          <SettingsAccountsLegacySections />
         )}
       </SettingsPageContainer>
-    </SubMenuTopBarContainer>
+    </SettingsPageLayout>
   );
 };

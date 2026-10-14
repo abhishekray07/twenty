@@ -1,3 +1,4 @@
+import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { CHART_MOTION_CONFIG } from '@/page-layout/widgets/graph/constants/ChartMotionConfig';
 import { GraphWidgetChartContainer } from '@/page-layout/widgets/graph/components/GraphWidgetChartContainer';
 import { GraphWidgetLegend } from '@/page-layout/widgets/graph/components/GraphWidgetLegend';
@@ -34,9 +35,9 @@ import {
   type Point,
   type SliceTooltipProps,
 } from '@nivo/line';
-import { useCallback, useContext, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { ThemeContext } from 'twenty-ui/theme-constants';
+import { useTheme } from 'twenty-ui/theme';
 import { useDebouncedCallback } from 'use-debounce';
 
 type CrosshairLayerProps = LineCustomSvgLayerProps<LineSeries>;
@@ -46,6 +47,7 @@ type LinesLayerProps = LineCustomSvgLayerProps<LineSeries>;
 type NoDataLayerWrapperProps = LineCustomSvgLayerProps<LineSeries>;
 
 type GraphWidgetLineChartProps = {
+  axisDisplayType?: GraphValueFormatOptions['displayType'];
   data: LineChartSeriesWithColor[];
   showLegend?: boolean;
   showGrid?: boolean;
@@ -60,6 +62,7 @@ type GraphWidgetLineChartProps = {
   groupMode?: 'stacked';
   colorMode: GraphColorMode;
   onSliceClick?: (point: Point<LineSeries>) => void;
+  tooltipDisplayType?: GraphValueFormatOptions['displayType'];
 } & GraphValueFormatOptions;
 
 const StyledContainer = styled.div`
@@ -84,6 +87,8 @@ export const GraphWidgetLineChart = ({
   rangeMax,
   omitNullValues = false,
   displayType,
+  axisDisplayType,
+  tooltipDisplayType,
   groupMode,
   colorMode,
   decimals,
@@ -92,11 +97,13 @@ export const GraphWidgetLineChart = ({
   customFormatter,
   onSliceClick,
 }: GraphWidgetLineChartProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
   const colorRegistry = createGraphColorRegistry(theme.color);
   const chartTheme = useLineChartTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
+
+  const { formatNumber } = useNumberFormat();
 
   const formatOptions: GraphValueFormatOptions = {
     displayType,
@@ -104,6 +111,17 @@ export const GraphWidgetLineChart = ({
     prefix,
     suffix,
     customFormatter,
+    formatNumberFn: formatNumber,
+  };
+
+  const axisFormatOptions: GraphValueFormatOptions = {
+    ...formatOptions,
+    displayType: axisDisplayType ?? displayType,
+  };
+
+  const tooltipFormatOptions: GraphValueFormatOptions = {
+    ...formatOptions,
+    displayType: tooltipDisplayType ?? displayType,
   };
 
   const { enrichedSeries, nivoData, colors, legendItems, visibleData } =
@@ -168,7 +186,7 @@ export const GraphWidgetLineChart = ({
     data,
     xAxisLabel,
     yAxisLabel,
-    formatOptions,
+    formatOptions: axisFormatOptions,
     effectiveMinimumValue,
     effectiveMaximumValue,
   });
@@ -342,7 +360,7 @@ export const GraphWidgetLineChart = ({
       <GraphLineChartTooltip
         containerRef={containerRef}
         enrichedSeries={enrichedSeries}
-        formatOptions={formatOptions}
+        formatOptions={tooltipFormatOptions}
         isStacked={groupMode === 'stacked'}
         onSliceClick={onSliceClick}
         onMouseEnter={handleTooltipMouseEnter}

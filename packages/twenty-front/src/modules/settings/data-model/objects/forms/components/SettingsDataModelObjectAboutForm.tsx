@@ -1,32 +1,27 @@
+import { useGetIsMetadataItemCustom } from '@/object-metadata/hooks/useGetIsMetadataItemCustom';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
+import { getObjectColorWithFallback } from '@/object-metadata/utils/getObjectColorWithFallback';
 import { AdvancedSettingsWrapper } from '@/settings/components/AdvancedSettingsWrapper';
-import { SettingsOptionCardContentToggle } from '@/settings/components/SettingsOptions/SettingsOptionCardContentToggle';
+import { SettingsOptionCardContentSwitch } from '@/settings/components/SettingsOptions/SettingsOptionCardContentSwitch';
 import { OBJECT_NAME_MAXIMUM_LENGTH } from '@/settings/data-model/constants/ObjectNameMaximumLength';
 import { type SettingsDataModelObjectAboutFormValues } from '@/settings/data-model/validation-schemas/settingsDataModelObjectAboutFormSchema';
 import { IconPicker } from '@/ui/input/components/IconPicker';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { TextArea } from '@/ui/input/components/TextArea';
+import { TooltipDelay } from '@/ui/layout/tooltip/constants/TooltipDelay';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { plural } from 'pluralize';
-import { useContext } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import { SettingsPath } from 'twenty-shared/types';
 import { capitalize, isDefined } from 'twenty-shared/utils';
-import {
-  AppTooltip,
-  IconInfoCircle,
-  IconLink,
-  IconRefresh,
-  TooltipDelay,
-  InlineBanner,
-} from 'twenty-ui/display';
-import { Card } from 'twenty-ui/layout';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
-import { parseThemeColor } from 'twenty-ui/utilities';
+import { InlineBanner } from 'twenty-ui/components/feedback';
+import { IconInfoCircle, IconLink, IconRefresh } from 'twenty-ui/icon';
+import { Card, Tooltip } from 'twenty-ui/primitives/surfaces';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 import { type StringKeyOf } from 'type-fest';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
-import { computeMetadataNamesFromLabels } from '~/pages/settings/data-model/utils/computeMetadataNamesFromLabels';
+import { computeMetadataNamesFromLabels } from '@/object-metadata/utils/computeMetadataNamesFromLabels';
 
 type SettingsDataModelObjectAboutFormProps = {
   disableEdition?: boolean;
@@ -81,26 +76,35 @@ export const SettingsDataModelObjectAboutForm = ({
   objectMetadataItem,
   conflictingObjectMetadataItem,
 }: SettingsDataModelObjectAboutFormProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
   const { control, watch, setValue } =
     useFormContext<SettingsDataModelObjectAboutFormValues>();
   const { t } = useLingui();
   const navigateSettings = useNavigateSettings();
+  const getIsMetadataItemCustom = useGetIsMetadataItemCustom();
 
   const isLabelSyncedWithName = watch('isLabelSyncedWithName');
   const labelSingular = watch('labelSingular');
   const labelPlural = watch('labelPlural');
   const isStandardObject =
-    isDefined(objectMetadataItem?.isCustom) && !objectMetadataItem.isCustom;
+    isDefined(objectMetadataItem) &&
+    !getIsMetadataItemCustom(objectMetadataItem);
   const showObjectColorInIconPicker =
     !isStandardObject &&
-    (!isDefined(objectMetadataItem) || objectMetadataItem.isCustom);
+    (!isDefined(objectMetadataItem) ||
+      getIsMetadataItemCustom(objectMetadataItem));
   watch('description');
   watch('icon');
   const objectIconColor = watch('color');
+  const resolvedIconColor = getObjectColorWithFallback({
+    nameSingular: objectMetadataItem?.nameSingular ?? watch('nameSingular'),
+    isSystem: objectMetadataItem?.isSystem ?? false,
+    color: objectIconColor,
+  });
 
   const apiNameTooltipText =
-    !isDefined(objectMetadataItem) || objectMetadataItem.isCustom
+    !isDefined(objectMetadataItem) ||
+    getIsMetadataItemCustom(objectMetadataItem)
       ? isLabelSyncedWithName
         ? t`Deactivate "Synchronize Objects Labels and API Names" to set a custom API name`
         : t`Input must be in camel case and cannot start with a number`
@@ -154,6 +158,7 @@ export const SettingsDataModelObjectAboutForm = ({
             render={({ field: { onChange, value } }) => (
               <IconPicker
                 selectedIconKey={value}
+                iconColor={resolvedIconColor}
                 disabled={disableEdition}
                 dropdownId={
                   isDefined(objectMetadataItem)
@@ -163,7 +168,7 @@ export const SettingsDataModelObjectAboutForm = ({
                 iconColorPicker={
                   showObjectColorInIconPicker
                     ? {
-                        selectedColor: parseThemeColor(objectIconColor),
+                        selectedColor: resolvedIconColor,
                         onColorChange: (nextColor) => {
                           setValue('color', nextColor, {
                             shouldDirty: true,
@@ -259,17 +264,18 @@ export const SettingsDataModelObjectAboutForm = ({
           <StyledAdvancedSettingsSectionInputWrapper>
             {isDefined(conflictingObjectMetadataItem) && (
               <InlineBanner
-                color={'blue'}
-                message={t`An object with this name already exists`}
-                button={{
-                  title: t`Open`,
-                  onClick: () =>
-                    navigateSettings(SettingsPath.ObjectDetail, {
-                      objectNamePlural:
-                        conflictingObjectMetadataItem.namePlural,
-                    }),
-                }}
-              />
+                status="info"
+                action={
+                  <InlineBanner.Action
+                    onClick={() =>
+                      navigateSettings(SettingsPath.ObjectDetail, {
+                        objectNamePlural:
+                          conflictingObjectMetadataItem.namePlural,
+                      })
+                    }
+                  >{t`Open`}</InlineBanner.Action>
+                }
+              >{t`An object with this name already exists`}</InlineBanner>
             )}
             {[
               {
@@ -331,21 +337,20 @@ export const SettingsDataModelObjectAboutForm = ({
                             RightIcon={() =>
                               tooltip && (
                                 <>
-                                  <IconInfoCircle
-                                    id={infoCircleElementId + fieldName}
-                                    size={theme.icon.size.md}
-                                    color={theme.font.color.tertiary}
-                                    style={{ outline: 'none' }}
-                                  />
-                                  <AppTooltip
-                                    anchorSelect={`#${infoCircleElementId}${fieldName}`}
+                                  <Tooltip
                                     content={tooltip}
-                                    offset={5}
-                                    noArrow
-                                    place="bottom"
-                                    positionStrategy="fixed"
+                                    sideOffset={5}
+                                    side="bottom"
+                                    positionMethod="fixed"
                                     delay={TooltipDelay.shortDelay}
-                                  />
+                                  >
+                                    <IconInfoCircle
+                                      id={infoCircleElementId + fieldName}
+                                      size={theme.icon.size.md}
+                                      color={theme.font.color.tertiary}
+                                      style={{ outline: 'none' }}
+                                    />
+                                  </Tooltip>
                                 </>
                               )
                             }
@@ -364,8 +369,8 @@ export const SettingsDataModelObjectAboutForm = ({
                   control={control}
                   defaultValue={objectMetadataItem?.isLabelSyncedWithName}
                   render={({ field: { onChange, value } }) => (
-                    <Card rounded>
-                      <SettingsOptionCardContentToggle
+                    <Card.Root rounded>
+                      <SettingsOptionCardContentSwitch
                         Icon={IconRefresh}
                         title={t`Synchronize Objects Labels and API Names`}
                         description={t`Should changing an object's label also change the API?`}
@@ -376,7 +381,7 @@ export const SettingsDataModelObjectAboutForm = ({
                           onChange(value);
                           const isCustomObject =
                             isDefined(objectMetadataItem) &&
-                            objectMetadataItem.isCustom;
+                            getIsMetadataItemCustom(objectMetadataItem);
                           const isbeingCreatedObject =
                             !isDefined(objectMetadataItem);
                           if (
@@ -388,7 +393,7 @@ export const SettingsDataModelObjectAboutForm = ({
                           onNewDirtyField?.();
                         }}
                       />
-                    </Card>
+                    </Card.Root>
                   )}
                 />
               </AdvancedSettingsWrapper>
@@ -400,8 +405,8 @@ export const SettingsDataModelObjectAboutForm = ({
                   control={control}
                   defaultValue={false}
                   render={({ field: { onChange, value } }) => (
-                    <Card rounded>
-                      <SettingsOptionCardContentToggle
+                    <Card.Root rounded>
+                      <SettingsOptionCardContentSwitch
                         Icon={IconLink}
                         title={t`Skip creating a Name field `}
                         description={t`Useful for pivot/junction tables`}
@@ -413,7 +418,7 @@ export const SettingsDataModelObjectAboutForm = ({
                           onNewDirtyField?.();
                         }}
                       />
-                    </Card>
+                    </Card.Root>
                   )}
                 />
               </AdvancedSettingsWrapper>

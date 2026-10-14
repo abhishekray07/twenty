@@ -42,8 +42,9 @@ async function checkServer(apiUrl: string) {
 function writeConfig(apiUrl: string, apiKey: string) {
   const payload = JSON.stringify(
     {
+      version: 1,
       remotes: {
-        local: { apiUrl, apiKey, accessToken: apiKey },
+        local: { apiUrl, apiKey, twentyCLIAccessToken: apiKey },
       },
       defaultRemote: 'local',
     },
@@ -80,8 +81,8 @@ export async function teardown() {
   const uninstallResult = await appUninstall({ appPath: APP_PATH });
 
   if (!uninstallResult.success) {
-    console.warn(
-      `App uninstall failed: ${uninstallResult.error?.message ?? 'Unknown error'}`,
+    throw new Error(
+      `App uninstall failed during teardown: ${JSON.stringify(uninstallResult.error, null, 2)}`,
     );
   }
 }

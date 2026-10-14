@@ -4,16 +4,22 @@ import { isNonEmptyString } from '@sniptt/guards';
 import chunk from 'lodash.chunk';
 import { OBJECTS_WITH_CHANNEL_VISIBILITY_CONSTRAINTS } from 'twenty-shared/constants';
 import {
+  compositeTypeDefinitions,
   FieldMetadataType,
   FileFolder,
   ObjectRecord,
 } from 'twenty-shared/types';
-import { getLogoUrlFromDomainName, isDefined } from 'twenty-shared/utils';
+import {
+  escapeForIlike,
+  getLinkFaviconUrl,
+  isDefined,
+} from 'twenty-shared/utils';
 import { Brackets, type ObjectLiteral } from 'typeorm';
+
+import { type APP_LOCALES } from 'twenty-shared/translations';
 
 import { type ObjectRecordFilter } from 'src/engine/api/graphql/workspace-query-builder/interfaces/object-record.interface';
 
-import { FileOutput } from 'src/engine/api/common/common-args-processors/data-arg-processor/types/file-item.type';
 import { GraphqlQueryParser } from 'src/engine/api/graphql/graphql-query-runner/graphql-query-parsers/graphql-query.parser';
 import {
   decodeCursor,
@@ -32,19 +38,27 @@ import {
   SearchException,
   SearchExceptionCode,
 } from 'src/engine/core-modules/search/exceptions/search.exception';
-import { type RecordsWithObjectMetadataItem } from 'src/engine/core-modules/search/types/records-with-object-metadata-item';
-import { escapeForIlike } from 'src/engine/core-modules/search/utils/escape-for-ilike';
+import { type RecordsWithObjectMetadataItem } from 'src/engine/core-modules/search/types/records-with-object-metadata-item.type';
 import { formatSearchTerms } from 'src/engine/core-modules/search/utils/format-search-terms';
+import { hasCjkCharacters } from 'src/engine/core-modules/search/utils/has-cjk-characters';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { type IDataloaders } from 'src/engine/dataloaders/dataloader.interface';
+import { computeCompositeColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-column-name.util';
+import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
+import { getEffectiveImageIdentifierFieldMetadataId } from 'src/engine/metadata-modules/object-metadata/utils/get-effective-image-identifier-field-metadata-id.util';
 import { SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/search-vector-field.constants';
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
-import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
+import { resolveEffectiveEntityProperty } from 'src/engine/metadata-modules/overrides/utils/resolve-effective-entity-property.util';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
+import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace-repository';
 import { getWorkspaceContext } from 'src/engine/twenty-orm/storage/orm-workspace-context.storage';
 import { resolveRolePermissionConfig } from 'src/engine/twenty-orm/utils/resolve-role-permission-config.util';
+import { type RolePermissionConfig } from 'src/engine/twenty-orm/types/role-permission-config.type';
+import { ApplicationTranslationCatalogService } from 'src/engine/metadata-modules/application-translation-catalog/services/application-translation-catalog.service';
+import { resolveEffectiveFlatEntityProperty } from 'src/engine/metadata-modules/overrides/utils/resolve-effective-flat-entity-property.util';
 
 type LastRanks = { tsRankCD: number; tsRank: number };
 
@@ -60,9 +74,10 @@ export class SearchService {
   private readonly logger = new Logger(SearchService.name);
 
   constructor(
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    private readonly workspaceOrmManager: WorkspaceOrmManager,
     private readonly fileUrlService: FileUrlService,
     private readonly twentyConfigService: TwentyConfigService,
+    private readonly applicationTranslationCatalogService: ApplicationTranslationCatalogService,
   ) {}
 
   async getAllRecordsWithObjectMetadataItems({
@@ -74,11 +89,9 @@ export class SearchService {
     limit,
     filter,
     after,
-    workspaceId,
   }: {
     flatObjectMetadatas: FlatObjectMetadata[];
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
-    workspaceId: string;
   } & SearchArgs) {
     const filteredObjectMetadataItems = this.filterObjectMetadataItems({
       flatObjectMetadatas,
@@ -97,7 +110,7 @@ export class SearchService {
     for (const objectMetadataItemChunk of filteredObjectMetadataItemsChunks) {
       const recordsWithObjectMetadataItems = await Promise.all(
         objectMetadataItemChunk.map(async (flatObjectMetadata) => {
-          return this.globalWorkspaceOrmManager.executeInWorkspaceContext(
+          return this.workspaceOrmManager.executeInWorkspaceContext(
             async () => {
               const context = getWorkspaceContext();
               const rolePermissionConfig =
@@ -108,16 +121,17 @@ export class SearchService {
                 }) ?? undefined;
 
               const repository =
-                await this.globalWorkspaceOrmManager.getRepository<ObjectRecord>(
-                  workspaceId,
+                this.workspaceOrmManager.getRepository<ObjectRecord>(
                   flatObjectMetadata.nameSingular,
                   rolePermissionConfig,
+                  { useReplica: true },
                 );
 
               return {
                 objectMetadataItem: flatObjectMetadata,
                 records: await this.buildSearchQueryAndGetRecordsWithFallback({
                   entityManager: repository,
+                  rolePermissionConfig,
                   flatObjectMetadata,
                   flatFieldMetadataMaps,
                   searchInput,
@@ -150,49 +164,52 @@ export class SearchService {
   }) {
     const hasExplicitInclusion = includedObjectNameSingulars.length > 0;
 
-    return flatObjectMetadatas.filter(
-      ({ nameSingular, isSearchable, isActive }) => {
-        if (!isActive) {
+    return flatObjectMetadatas.filter((flatObjectMetadata) => {
+      const { nameSingular, isSearchable } = flatObjectMetadata;
+
+      if (
+        !resolveEffectiveFlatEntityProperty({
+          metadataName: 'objectMetadata',
+          flatEntity: flatObjectMetadata,
+          property: 'isActive',
+        })
+      ) {
+        return false;
+      }
+
+      if (hasExplicitInclusion) {
+        if (
+          OBJECTS_WITH_CHANNEL_VISIBILITY_CONSTRAINTS.includes(
+            nameSingular as (typeof OBJECTS_WITH_CHANNEL_VISIBILITY_CONSTRAINTS)[number],
+          )
+        ) {
           return false;
         }
 
-        if (hasExplicitInclusion) {
-          if (
-            OBJECTS_WITH_CHANNEL_VISIBILITY_CONSTRAINTS.includes(
-              nameSingular as (typeof OBJECTS_WITH_CHANNEL_VISIBILITY_CONSTRAINTS)[number],
-            )
-          ) {
-            return false;
-          }
+        return (
+          includedObjectNameSingulars.includes(nameSingular) &&
+          !excludedObjectNameSingulars.includes(nameSingular)
+        );
+      }
 
-          return (
-            includedObjectNameSingulars.includes(nameSingular) &&
-            !excludedObjectNameSingulars.includes(nameSingular)
-          );
-        }
+      if (!isSearchable) {
+        return false;
+      }
 
-        if (!isSearchable) {
-          return false;
-        }
+      if (excludedObjectNameSingulars.includes(nameSingular)) {
+        return false;
+      }
 
-        if (excludedObjectNameSingulars.includes(nameSingular)) {
-          return false;
-        }
-
-        return true;
-      },
-    );
+      return true;
+    });
   }
 
-  // Runs a fast tsvector query first (uses GIN index). If tsvector returns zero
-  // results for an object type on the first page, falls back to ILIKE on the
-  // searchVector text to catch cases where tokenization fails (e.g. CJK text).
-  // Skipped when tsvector finds any results (partial results mean the data just
-  // has fewer matches, not a tokenization issue) and on paginated requests.
+  // The simple text search config does not segment CJK, so fall back to substring matching.
   async buildSearchQueryAndGetRecordsWithFallback<
     Entity extends ObjectLiteral,
   >({
     entityManager,
+    rolePermissionConfig,
     flatObjectMetadata,
     flatFieldMetadataMaps,
     searchInput,
@@ -203,6 +220,7 @@ export class SearchService {
     after,
   }: {
     entityManager: WorkspaceRepository<Entity>;
+    rolePermissionConfig?: RolePermissionConfig;
     flatObjectMetadata: FlatObjectMetadata;
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
     searchInput: string;
@@ -225,7 +243,7 @@ export class SearchService {
 
     if (
       tsvectorResults.length > 0 ||
-      !isNonEmptyString(searchInput.trim()) ||
+      !hasCjkCharacters(searchInput) ||
       isDefined(after)
     ) {
       return tsvectorResults;
@@ -233,6 +251,7 @@ export class SearchService {
 
     const fallbackResults = await this.buildIlikeFallbackQuery({
       entityManager,
+      rolePermissionConfig,
       flatObjectMetadata,
       flatFieldMetadataMaps,
       searchInput,
@@ -262,7 +281,9 @@ export class SearchService {
     filter: ObjectRecordFilterInput;
     after?: string;
   }) {
-    const queryBuilder = entityManager.createQueryBuilder();
+    const queryBuilder = entityManager.createQueryBuilder(
+      flatObjectMetadata.nameSingular,
+    );
 
     const { flatObjectMetadataMaps } = entityManager.internalContext;
 
@@ -280,7 +301,7 @@ export class SearchService {
 
     queryParser.applyDeletedAtToBuilder(queryBuilder, filter);
 
-    const imageIdentifierField = this.getImageIdentifierColumn(
+    const imageIdentifierColumns = this.getImageIdentifierColumns(
       flatObjectMetadata,
       flatFieldMetadataMaps,
     );
@@ -291,8 +312,8 @@ export class SearchService {
         flatObjectMetadata,
         flatFieldMetadataMaps,
       ),
-      ...(imageIdentifierField ? [imageIdentifierField] : []),
-    ].map((field) => `"${field}"`);
+      ...imageIdentifierColumns,
+    ];
 
     const tsRankCDExpr = `ts_rank_cd("${SEARCH_VECTOR_FIELD.name}", to_tsquery('simple', public.unaccent_immutable(:searchTerms)))`;
 
@@ -305,8 +326,21 @@ export class SearchService {
       tsRankCDExpr,
     });
 
+    const [firstField, ...remainingFields] = fieldsToSelect;
+
+    queryBuilder.select(
+      `"${flatObjectMetadata.nameSingular}"."${firstField}"`,
+      firstField,
+    );
+
+    for (const field of remainingFields) {
+      queryBuilder.addSelect(
+        `"${flatObjectMetadata.nameSingular}"."${field}"`,
+        field,
+      );
+    }
+
     queryBuilder
-      .select(fieldsToSelect)
       .addSelect(tsRankCDExpr, 'tsRankCD')
       .addSelect(tsRankExpr, 'tsRank');
 
@@ -340,12 +374,13 @@ export class SearchService {
       .addOrderBy('id', 'ASC', 'NULLS FIRST')
       .setParameter('searchTerms', searchTerms)
       .setParameter('searchTermsOr', searchTermsOr)
-      .take(limit + 1) // We take one more to check if hasNextPage is true
-      .getRawMany();
+      .take(limit + 1)
+      .getRawMany<ObjectRecord & { tsRank: number; tsRankCD: number }>();
   }
 
   private async buildIlikeFallbackQuery<Entity extends ObjectLiteral>({
     entityManager,
+    rolePermissionConfig,
     flatObjectMetadata,
     flatFieldMetadataMaps,
     searchInput,
@@ -353,6 +388,7 @@ export class SearchService {
     filter,
   }: {
     entityManager: WorkspaceRepository<Entity>;
+    rolePermissionConfig?: RolePermissionConfig;
     flatObjectMetadata: FlatObjectMetadata;
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
     searchInput: string;
@@ -363,30 +399,24 @@ export class SearchService {
       'SEARCH_ILIKE_FALLBACK_TIMEOUT_MS',
     );
 
-    // Must not run inside a caller transaction: SET LOCAL is transaction-scoped
-    // and would leak into the outer transaction.
     try {
-      return await entityManager.manager.transaction(
-        async (transactionManager) => {
-          const { queryRunner } = transactionManager;
-
-          if (!isDefined(queryRunner)) {
-            throw new Error(
-              'Expected queryRunner to be defined within transaction',
-            );
-          }
-
-          await queryRunner.query(
+      return await this.workspaceOrmManager.runInWorkspaceTransaction(
+        async (transactionScope) => {
+          await transactionScope.executeRawQuery(
             `SELECT set_config('statement_timeout', $1, true)`,
             [String(timeoutMs)],
           );
 
-          const queryBuilder = entityManager.createQueryBuilder(
-            undefined,
-            queryRunner,
+          const repository = transactionScope.getRepository<Entity>(
+            flatObjectMetadata.nameSingular,
+            rolePermissionConfig,
           );
 
-          const { flatObjectMetadataMaps } = entityManager.internalContext;
+          const queryBuilder = repository.createQueryBuilder(
+            flatObjectMetadata.nameSingular,
+          );
+
+          const { flatObjectMetadataMaps } = repository.internalContext;
 
           const queryParser = new GraphqlQueryParser(
             flatObjectMetadata,
@@ -402,7 +432,7 @@ export class SearchService {
 
           queryParser.applyDeletedAtToBuilder(queryBuilder, filter);
 
-          const imageIdentifierField = this.getImageIdentifierColumn(
+          const imageIdentifierColumns = this.getImageIdentifierColumns(
             flatObjectMetadata,
             flatFieldMetadataMaps,
           );
@@ -413,10 +443,22 @@ export class SearchService {
               flatObjectMetadata,
               flatFieldMetadataMaps,
             ),
-            ...(imageIdentifierField ? [imageIdentifierField] : []),
-          ].map((field) => `"${field}"`);
+            ...imageIdentifierColumns,
+          ];
 
-          queryBuilder.select(fieldsToSelect);
+          const [firstField, ...remainingFields] = fieldsToSelect;
+
+          queryBuilder.select(
+            `"${flatObjectMetadata.nameSingular}"."${firstField}"`,
+            firstField,
+          );
+
+          for (const field of remainingFields) {
+            queryBuilder.addSelect(
+              `"${flatObjectMetadata.nameSingular}"."${field}"`,
+              field,
+            );
+          }
 
           const searchWords = searchInput
             .trim()
@@ -433,9 +475,9 @@ export class SearchService {
           });
 
           const rawResults = await queryBuilder
-            .orderBy('"id"', 'ASC')
+            .orderBy(`"${flatObjectMetadata.nameSingular}"."id"`, 'ASC')
             .take(limit)
-            .getRawMany();
+            .getRawMany<ObjectRecord>();
 
           return rawResults.map((record) => ({
             ...record,
@@ -556,37 +598,60 @@ export class SearchService {
     return labelIdentifierFields.map((field) => record[field]).join(' ');
   }
 
-  getImageIdentifierColumn(
+  private getEffectiveImageIdentifierFieldMetadata(
     flatObjectMetadata: FlatObjectMetadata,
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
-  ) {
-    if (flatObjectMetadata.nameSingular === 'company') {
-      return 'domainNamePrimaryLinkUrl';
+  ): FlatFieldMetadata | undefined {
+    const imageIdentifierFieldMetadataId =
+      getEffectiveImageIdentifierFieldMetadataId(flatObjectMetadata);
+
+    if (!isDefined(imageIdentifierFieldMetadataId)) {
+      return undefined;
     }
 
-    //TODO: Temporary solution before imageIdentifier refactor
-    if (flatObjectMetadata.nameSingular === 'person') {
-      return 'avatarFile';
-    }
-
-    if (flatObjectMetadata.nameSingular === 'workspaceMember') {
-      return 'avatarUrl';
-    }
-
-    if (!flatObjectMetadata.imageIdentifierFieldMetadataId) {
-      return null;
-    }
-
-    const imageIdentifierField = findFlatEntityByIdInFlatEntityMaps({
-      flatEntityId: flatObjectMetadata.imageIdentifierFieldMetadataId,
+    return findFlatEntityByIdInFlatEntityMaps({
+      flatEntityId: imageIdentifierFieldMetadataId,
       flatEntityMaps: flatFieldMetadataMaps,
     });
+  }
 
-    if (!isDefined(imageIdentifierField)) {
-      return null;
+  getImageIdentifierColumns(
+    flatObjectMetadata: FlatObjectMetadata,
+    flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
+  ): string[] {
+    if (flatObjectMetadata.nameSingular === 'workspaceMember') {
+      return ['avatarUrl'];
     }
 
-    return imageIdentifierField.name;
+    const imageIdentifierField = this.getEffectiveImageIdentifierFieldMetadata(
+      flatObjectMetadata,
+      flatFieldMetadataMaps,
+    );
+
+    if (!isDefined(imageIdentifierField)) {
+      return [];
+    }
+
+    const imageIdentifierCompositeType = isCompositeFieldMetadataType(
+      imageIdentifierField.type,
+    )
+      ? compositeTypeDefinitions.get(imageIdentifierField.type)
+      : undefined;
+
+    if (isDefined(imageIdentifierCompositeType)) {
+      return imageIdentifierCompositeType.properties
+        .filter(
+          (compositeProperty) => compositeProperty.name === 'primaryLinkUrl',
+        )
+        .map((compositeProperty) =>
+          computeCompositeColumnName(
+            imageIdentifierField.name,
+            compositeProperty,
+          ),
+        );
+    }
+
+    return [imageIdentifierField.name];
   }
 
   private async getImageUrlWithToken(
@@ -607,39 +672,16 @@ export class SearchService {
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
     workspaceId: string,
   ): Promise<string> {
-    const imageIdentifierField = this.getImageIdentifierColumn(
-      flatObjectMetadata,
-      flatFieldMetadataMaps,
-    );
-
-    if (
-      flatObjectMetadata.nameSingular === 'company' &&
-      this.twentyConfigService.get('ALLOW_REQUESTS_TO_TWENTY_ICONS')
-    ) {
-      return getLogoUrlFromDomainName(record.domainNamePrimaryLinkUrl) || '';
-    }
-
-    //TODO: Temporary solution before imageIdentifier refactor
-    if (flatObjectMetadata.nameSingular === 'person') {
-      const avatarFileId = (record.avatarFile as FileOutput[])?.[0]?.fileId;
-      if (!isDefined(avatarFileId)) {
-        return '';
-      }
-      return this.getImageUrlWithToken(
-        avatarFileId,
-        FileFolder.FilesField,
-        workspaceId,
-      );
-    }
-
     if (flatObjectMetadata.nameSingular === 'workspaceMember') {
       const avatarFileId = extractFileIdFromUrl(
         record.avatarUrl,
         FileFolder.CorePicture,
       );
+
       if (!isDefined(avatarFileId)) {
         return '';
       }
+
       return this.getImageUrlWithToken(
         avatarFileId,
         FileFolder.CorePicture,
@@ -647,14 +689,58 @@ export class SearchService {
       );
     }
 
-    return imageIdentifierField &&
-      isNonEmptyString(record[imageIdentifierField])
-      ? this.getImageUrlWithToken(
-          record[imageIdentifierField],
+    const imageIdentifierField = this.getEffectiveImageIdentifierFieldMetadata(
+      flatObjectMetadata,
+      flatFieldMetadataMaps,
+    );
+
+    if (!isDefined(imageIdentifierField)) {
+      return '';
+    }
+
+    switch (imageIdentifierField.type) {
+      case FieldMetadataType.FILES: {
+        const avatarFileId = record[imageIdentifierField.name]?.[0]?.fileId;
+
+        if (!isNonEmptyString(avatarFileId)) {
+          return '';
+        }
+
+        return this.getImageUrlWithToken(
+          avatarFileId,
           FileFolder.FilesField,
           workspaceId,
-        )
-      : '';
+        );
+      }
+      case FieldMetadataType.LINKS: {
+        if (!this.twentyConfigService.get('ALLOW_REQUESTS_TO_TWENTY_ICONS')) {
+          return '';
+        }
+
+        const primaryLinkUrlProperty = compositeTypeDefinitions
+          .get(FieldMetadataType.LINKS)
+          ?.properties.find((property) => property.name === 'primaryLinkUrl');
+
+        if (!isDefined(primaryLinkUrlProperty)) {
+          return '';
+        }
+
+        const primaryLinkUrl =
+          record[
+            computeCompositeColumnName(
+              imageIdentifierField.name,
+              primaryLinkUrlProperty,
+            )
+          ];
+
+        return isNonEmptyString(primaryLinkUrl)
+          ? getLinkFaviconUrl(primaryLinkUrl) || ''
+          : '';
+      }
+      default: {
+        return '';
+      }
+    }
   }
 
   computeEdges({
@@ -700,13 +786,44 @@ export class SearchService {
     workspaceId,
     limit,
     after,
+    loaders,
+    locale,
   }: {
     recordsWithObjectMetadataItems: RecordsWithObjectMetadataItem[];
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
     workspaceId: string;
     limit: number;
     after?: string;
+    loaders: IDataloaders;
+    locale: keyof typeof APP_LOCALES | undefined;
   }): Promise<SearchResultConnectionDTO> {
+    const objectLabelSingularByObjectMetadataId = new Map(
+      await Promise.all(
+        recordsWithObjectMetadataItems.map(
+          async ({ objectMetadataItem }) =>
+            [
+              objectMetadataItem.id,
+              resolveEffectiveEntityProperty({
+                metadataName: 'objectMetadata',
+                baseValue: objectMetadataItem.labelSingular,
+                overrides: objectMetadataItem.overrides,
+                property: 'labelSingular',
+                i18nContext:
+                  await this.applicationTranslationCatalogService.buildEffectiveEntityI18nContext(
+                    {
+                      applicationId:
+                        objectMetadataItem.applicationId ?? undefined,
+                      loaders,
+                      locale,
+                      workspaceId,
+                    },
+                  ),
+              }),
+            ] as const,
+        ),
+      ),
+    );
+
     const recordPromises = recordsWithObjectMetadataItems.flatMap(
       ({ objectMetadataItem, records }) => {
         return records.map(async (record) => {
@@ -714,8 +831,9 @@ export class SearchService {
             recordId: record.id,
             objectNameSingular: objectMetadataItem.nameSingular,
             objectLabelSingular:
-              objectMetadataItem.standardOverrides?.labelSingular ??
-              objectMetadataItem.labelSingular,
+              objectLabelSingularByObjectMetadataId.get(
+                objectMetadataItem.id,
+              ) ?? objectMetadataItem.labelSingular,
             label: this.getLabelIdentifierValue(
               record,
               objectMetadataItem,

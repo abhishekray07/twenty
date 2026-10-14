@@ -1,4 +1,4 @@
-import { type AiModelConfig } from 'src/engine/metadata-modules/ai/ai-models/types/ai-model-config.type';
+import { type AiModelCostConfig } from 'src/engine/metadata-modules/ai/ai-models/types/ai-model-cost-config.type';
 import { ModelFamily } from 'src/engine/metadata-modules/ai/ai-models/types/model-family.enum';
 
 export type TokenUsageInput = {
@@ -29,14 +29,10 @@ const safeNumber = (value: number | undefined): number => {
   return Number.isFinite(result) ? result : 0;
 };
 
-// Input token semantics differ by model family:
-//   Anthropic: inputTokens excludes cached and cache creation tokens
-//   OpenAI/xAI/Groq/Google: inputTokens includes cached tokens
-// Output token semantics also differ:
-//   Anthropic: outputTokens excludes reasoning (thinking) tokens
-//   OpenAI/xAI/Groq/Google: outputTokens includes reasoning tokens
+// every provider we use counts cached and cache-creation tokens inside inputTokens
+// Anthropic's outputTokens excludes reasoning tokens; OpenAI/xAI/Groq/Google include them
 export const computeCostBreakdown = (
-  model: AiModelConfig,
+  model: AiModelCostConfig,
   usage: TokenUsageInput,
 ): CostBreakdown => {
   const rawInputTokens = safeNumber(usage.inputTokens);
@@ -47,17 +43,16 @@ export const computeCostBreakdown = (
 
   const isAnthropicTokenReporting = model.modelFamily === ModelFamily.CLAUDE;
 
-  const adjustedInputTokens = isAnthropicTokenReporting
-    ? rawInputTokens
-    : Math.max(0, rawInputTokens - cachedInputTokens);
+  const adjustedInputTokens = Math.max(
+    0,
+    rawInputTokens - cachedInputTokens - cacheCreationTokens,
+  );
 
   const adjustedOutputTokens = isAnthropicTokenReporting
     ? rawOutputTokens
     : Math.max(0, rawOutputTokens - reasoningTokens);
 
-  const totalInputTokens = isAnthropicTokenReporting
-    ? rawInputTokens + cachedInputTokens + cacheCreationTokens
-    : rawInputTokens + cacheCreationTokens;
+  const totalInputTokens = rawInputTokens;
 
   const costInfo =
     model.longContextCost &&

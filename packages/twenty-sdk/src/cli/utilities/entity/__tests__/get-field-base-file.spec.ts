@@ -1,4 +1,9 @@
 import { getFieldBaseFile } from '@/cli/utilities/entity/entity-field-template';
+import {
+  FieldMetadataType,
+  RelationOnDeleteAction,
+  RelationType,
+} from 'twenty-shared/types';
 
 describe('getFieldBaseFile', () => {
   it('should render proper file using defineField', () => {
@@ -96,5 +101,137 @@ describe('getFieldBaseFile', () => {
     expect(uuid1).toBeDefined();
     expect(uuid2).toBeDefined();
     expect(uuid1).not.toBe(uuid2);
+  });
+
+  it('should render relation properties for a RELATION field', () => {
+    const result = getFieldBaseFile({
+      data: {
+        name: 'company',
+        label: 'Company',
+        type: 'RELATION' as any,
+        objectUniversalIdentifier: 'obj-1',
+        relationTargetObjectMetadataUniversalIdentifier: 'target-obj',
+        relationTargetFieldMetadataUniversalIdentifier: 'target-field',
+        relationType: 'ONE_TO_MANY' as any,
+      },
+      name: 'company',
+    });
+
+    expect(result).toContain(
+      "import { defineField, FieldType, RelationType } from 'twenty-sdk/define';",
+    );
+    expect(result).toContain('type: FieldType.RELATION');
+    expect(result).toContain(
+      "relationTargetObjectMetadataUniversalIdentifier: 'target-obj'",
+    );
+    expect(result).toContain(
+      "relationTargetFieldMetadataUniversalIdentifier: 'target-field'",
+    );
+    expect(result).toContain(
+      'universalSettings: { relationType: RelationType.ONE_TO_MANY }',
+    );
+    expect(result).not.toContain('morphId');
+  });
+
+  it('should include onDelete when provided for a RELATION field', () => {
+    const result = getFieldBaseFile({
+      data: {
+        name: 'company',
+        label: 'Company',
+        type: 'RELATION' as any,
+        objectUniversalIdentifier: 'obj-1',
+        relationTargetObjectMetadataUniversalIdentifier: 'target-obj',
+        relationTargetFieldMetadataUniversalIdentifier: 'target-field',
+        relationType: 'ONE_TO_MANY' as any,
+        onDelete: 'CASCADE' as any,
+      },
+      name: 'company',
+    });
+
+    expect(result).toContain(
+      "import { defineField, FieldType, RelationType, OnDeleteAction } from 'twenty-sdk/define';",
+    );
+    expect(result).toContain(
+      'universalSettings: { relationType: RelationType.ONE_TO_MANY, onDelete: OnDeleteAction.CASCADE }',
+    );
+  });
+
+  it('should omit onDelete when set to None for a RELATION field', () => {
+    const result = getFieldBaseFile({
+      data: {
+        name: 'company',
+        label: 'Company',
+        type: 'RELATION' as any,
+        objectUniversalIdentifier: 'obj-1',
+        relationTargetObjectMetadataUniversalIdentifier: 'target-obj',
+        relationTargetFieldMetadataUniversalIdentifier: 'target-field',
+        relationType: 'ONE_TO_MANY' as any,
+        onDelete: 'None',
+      },
+      name: 'company',
+    });
+
+    expect(result).not.toContain('onDelete');
+    expect(result).not.toContain('OnDeleteAction');
+  });
+
+  it('should render a generated morphId for a MORPH_RELATION field', () => {
+    const result = getFieldBaseFile({
+      data: {
+        name: 'target',
+        label: 'Target',
+        type: 'MORPH_RELATION' as any,
+        objectUniversalIdentifier: 'obj-1',
+        relationTargetObjectMetadataUniversalIdentifier: 'target-obj',
+        relationTargetFieldMetadataUniversalIdentifier: 'target-field',
+        relationType: 'MANY_TO_ONE' as any,
+      },
+      name: 'target',
+    });
+
+    expect(result).toContain('type: FieldType.MORPH_RELATION');
+    expect(result).toMatch(
+      /morphId: '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/,
+    );
+    expect(result).toContain(
+      "universalSettings: { relationType: RelationType.MANY_TO_ONE, joinColumnName: 'targetId' }",
+    );
+  });
+
+  it('should derive joinColumnName from the field name for a MANY_TO_ONE relation', () => {
+    const result = getFieldBaseFile({
+      data: {
+        name: 'recipient',
+        label: 'Recipient',
+        type: FieldMetadataType.RELATION,
+        objectUniversalIdentifier: 'obj-1',
+        relationTargetObjectMetadataUniversalIdentifier: 'target-obj',
+        relationTargetFieldMetadataUniversalIdentifier: 'target-field',
+        relationType: RelationType.MANY_TO_ONE,
+        onDelete: RelationOnDeleteAction.SET_NULL,
+      },
+      name: 'recipient',
+    });
+
+    expect(result).toContain(
+      "universalSettings: { relationType: RelationType.MANY_TO_ONE, onDelete: OnDeleteAction.SET_NULL, joinColumnName: 'recipientId' }",
+    );
+  });
+
+  it('should not emit joinColumnName for a ONE_TO_MANY relation', () => {
+    const result = getFieldBaseFile({
+      data: {
+        name: 'postCards',
+        label: 'Post cards',
+        type: FieldMetadataType.RELATION,
+        objectUniversalIdentifier: 'obj-1',
+        relationTargetObjectMetadataUniversalIdentifier: 'target-obj',
+        relationTargetFieldMetadataUniversalIdentifier: 'target-field',
+        relationType: RelationType.ONE_TO_MANY,
+      },
+      name: 'postCards',
+    });
+
+    expect(result).not.toContain('joinColumnName');
   });
 });

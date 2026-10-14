@@ -8,9 +8,12 @@ import { isFolderTreePartiallySelected } from '@/settings/accounts/components/me
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useState } from 'react';
-import { IconChevronDown, IconChevronUp } from 'twenty-ui/display';
-import { Checkbox, CheckboxSize } from 'twenty-ui/input';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { MessageFolderPendingSyncAction } from 'twenty-shared/types';
+import { Status } from 'twenty-ui/primitives/data-display';
+import { Checkbox } from 'twenty-ui/primitives/input';
+import { IconChevronDown, IconChevronUp } from 'twenty-ui/icon';
+
+import { themeCssVariables } from 'twenty-ui/theme';
 
 type SettingsMessageFoldersTreeItemProps = {
   depth?: number;
@@ -135,7 +138,9 @@ export const SettingsMessageFoldersTreeItem = ({
   const { children, folder, hasChildren } = folderTreeNode;
   const childCount = hasChildren ? countNestedFolders(folderTreeNode) : 0;
   const isIndeterminate =
-    hasChildren && isFolderTreePartiallySelected(folderTreeNode);
+    hasChildren &&
+    !folder.isSynced &&
+    isFolderTreePartiallySelected(folderTreeNode);
 
   const handleExpandToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -176,6 +181,11 @@ export const SettingsMessageFoldersTreeItem = ({
           </StyledFolderInfo>
 
           <StyledRightSection>
+            {folder.pendingSyncAction ===
+              MessageFolderPendingSyncAction.FOLDER_IMPORT && (
+              <Status color="turquoise" loading>{t`Importing`}</Status>
+            )}
+
             {hasChildren && (
               <>
                 <StyledChildCount>{childCount}</StyledChildCount>
@@ -198,8 +208,8 @@ export const SettingsMessageFoldersTreeItem = ({
               <Checkbox
                 checked={folder.isSynced}
                 indeterminate={isIndeterminate}
-                onChange={() => onToggleFolder(folder)}
-                size={CheckboxSize.Small}
+                onCheckedChange={() => onToggleFolder(folder)}
+                size={'sm'}
               />
             </StyledCheckboxWrapper>
           </StyledRightSection>

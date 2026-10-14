@@ -22,11 +22,9 @@ import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/use
 import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
 import { FieldMetadataType } from 'twenty-shared/types';
 import { CustomError, isDefined } from 'twenty-shared/utils';
-import { IconPlus } from 'twenty-ui/display';
-import { LightIconButton } from 'twenty-ui/input';
 
 type RecordDetailMorphRelationSectionDropdownOneToManyProps = {
-  dropdownTriggerClickableComponent?: ReactNode;
+  dropdownTriggerClickableComponent: ReactNode;
 };
 
 export const RecordDetailMorphRelationSectionDropdownOneToMany = ({
@@ -158,15 +156,7 @@ export const RecordDetailMorphRelationSectionDropdownOneToMany = ({
       dropdownPlacement="left-start"
       onClose={handleCloseRelationPickerDropdown}
       onOpen={handleOpenRelationPickerDropdown}
-      clickableComponent={
-        dropdownTriggerClickableComponent ?? (
-          <LightIconButton
-            className="displayOnHover"
-            Icon={IconPlus}
-            accent="tertiary"
-          />
-        )
-      }
+      clickableComponent={dropdownTriggerClickableComponent}
       dropdownComponents={
         <MultipleRecordPicker
           focusId={dropdownId}

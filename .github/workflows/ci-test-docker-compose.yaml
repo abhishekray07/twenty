@@ -17,7 +17,10 @@ jobs:
     uses: ./.github/workflows/changed-files.yaml
     with:
       files: |
+        .github/workflows/ci-test-docker-compose.yaml
         packages/twenty-docker/**
+        packages/twenty-server/src/engine/core-modules/frontend/**
+        packages/twenty-server/src/engine/core-modules/client-config/**
         docker-compose.yml
   test-compose:
     needs: changed-files-check
@@ -27,11 +30,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-      - name: Login to Docker Hub
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      # Pull base images through Google's Docker Hub mirror — avoids Docker Hub
+      # rate limits and needs no credentials (this repo is public).
+      - name: Configure Docker Hub mirror
+        run: |
+          echo '{"registry-mirrors":["https://mirror.gcr.io"]}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
       - name: Run compose
         run: |
           echo "Patching docker-compose.yml..."
@@ -102,15 +106,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-      - name: Login to Docker Hub
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      # Pull base images through Google's Docker Hub mirror — avoids Docker Hub
+      # rate limits and needs no credentials (this repo is public).
+      - name: Configure Docker Hub mirror
+        run: |
+          echo '{"registry-mirrors":["https://mirror.gcr.io"]}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
       - name: Create frontend placeholder
         run: |
           mkdir -p packages/twenty-front/build
-          echo '<html><body>CI placeholder</body></html>' > packages/twenty-front/build/index.html
+          echo '<html><head></head><body>CI placeholder</body></html>' > packages/twenty-front/build/index.html
       - name: Build app-dev image
         run: |
           docker build \
@@ -152,6 +157,21 @@ jobs:
             echo "Still waiting... (${count}/300s) [HTTP ${status}]"
             sleep 1
           done
+      - name: Verify backend HTML bootstrap
+        run: |
+          for path in / /index.html /objects/people; do
+            curl --fail --silent --show-error --header "Accept: text/html" --dump-header /tmp/twenty-headers \
+              "http://localhost:2020${path}" --output /tmp/twenty-document
+            grep -qi '^cache-control: no-store' /tmp/twenty-headers
+            grep -qi "^content-security-policy: frame-ancestors 'self';" /tmp/twenty-headers
+            grep -q 'id="twenty-client-config" type="application/json"' /tmp/twenty-document
+          done
+      - name: Verify ClickHouse migrations
+        run: |
+          expected=$(ls packages/twenty-server/src/database/clickhouse/migrations/*.sql | wc -l)
+          applied=$(docker exec twenty-app-dev clickhouse client --query "SELECT count() FROM twenty._migration")
+          echo "Applied ${applied}/${expected} ClickHouse migrations"
+          test "$applied" -eq "$expected"
   ci-test-docker-status-check:
     if: always() && !cancelled()
     timeout-minutes: 5
@@ -159,5 +179,5 @@ jobs:
     needs: [changed-files-check, test-compose, test-app-dev]
     steps:
       - name: Fail job if any needs failed
-        if: contains(needs.*.result, 'failure')
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1

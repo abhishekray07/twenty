@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
+import { type IdentifiedAccount } from 'twenty-shared/application';
 import { ConnectedAccountProvider } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
+import { AppConnectionAccessService } from 'src/engine/core-modules/application/connection-provider/app-connection-access.service';
 import { ConnectionProviderExceptionCode } from 'src/engine/core-modules/application/connection-provider/connection-provider-exception-code.enum';
+import { ConnectionProviderLifecycleHookService } from 'src/engine/core-modules/application/connection-provider/connection-provider-lifecycle-hook.service';
 import { type ConnectionProviderEntity } from 'src/engine/core-modules/application/connection-provider/connection-provider.entity';
 import { ConnectionProviderException } from 'src/engine/core-modules/application/connection-provider/connection-provider.exception';
 import { ConnectionProviderService } from 'src/engine/core-modules/application/connection-provider/connection-provider.service';
@@ -18,16 +21,17 @@ import {
 import { buildAppOAuthCallbackUrl } from 'src/engine/core-modules/application/connection-provider/utils/build-callback-url.util';
 import { computePkceChallenge } from 'src/engine/core-modules/application/connection-provider/utils/compute-pkce-challenge.util';
 import { exchangeCodeForToken } from 'src/engine/core-modules/application/connection-provider/utils/exchange-code-for-token.util';
+import { extractEmailFromIdTokenClaims } from 'src/engine/core-modules/application/connection-provider/utils/extract-email-from-id-token-claims.util';
 import { generatePkceVerifier } from 'src/engine/core-modules/application/connection-provider/utils/generate-pkce-verifier.util';
-import {
-  type AppOAuthStateJwtPayload,
-  JwtTokenTypeEnum,
-} from 'src/engine/core-modules/auth/types/auth-context.type';
+import { type AppOAuthStateJwtPayload } from 'src/engine/core-modules/auth/types/app-oauth-state-jwt-payload.type';
+import { JwtTokenTypeEnum } from 'src/engine/core-modules/auth/types/jwt-token-type.enum';
 import { JwtWrapperService } from 'src/engine/core-modules/jwt/services/jwt-wrapper.service';
 import { SecureHttpClientService } from 'src/engine/core-modules/secure-http-client/secure-http-client.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { ConnectedAccountTokenEncryptionService } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.service';
+import { buildConnectedAccountUsableByCallerWhere } from 'src/engine/metadata-modules/connected-account/utils/build-connected-account-usable-by-caller-where.util';
 
 const STATE_JWT_EXPIRES_IN = '10m';
 
@@ -63,8 +67,12 @@ export class ConnectionProviderOAuthFlowService {
     private readonly secureHttpClientService: SecureHttpClientService,
     private readonly twentyConfigService: TwentyConfigService,
     private readonly connectedAccountTokenEncryptionService: ConnectedAccountTokenEncryptionService,
+    private readonly connectionProviderLifecycleHookService: ConnectionProviderLifecycleHookService,
+    private readonly appConnectionAccessService: AppConnectionAccessService,
     @InjectRepository(ConnectedAccountEntity)
     private readonly connectedAccountRepository: Repository<ConnectedAccountEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
   ) {}
 
   async startAuthorizationFlow(
@@ -74,25 +82,35 @@ export class ConnectionProviderOAuthFlowService {
 
     assertOAuthProvider(connectionProvider);
 
-    // Reconnect target must live in the requesting workspace and belong to
-    // the same provider — without this guard a foreign id would silently
-    // leak through findOneByOrFail later in the flow.
+    let reconnectTarget: ConnectedAccountEntity | null = null;
+
     if (isDefined(args.reconnectingConnectedAccountId)) {
-      const target = await this.connectedAccountRepository.findOne({
-        where: {
-          id: args.reconnectingConnectedAccountId,
-          workspaceId,
-          connectionProviderId: connectionProvider.id,
-        },
+      reconnectTarget = await this.connectedAccountRepository.findOne({
+        where: buildConnectedAccountUsableByCallerWhere({
+          baseWhere: {
+            id: args.reconnectingConnectedAccountId,
+            workspaceId,
+            connectionProviderId: connectionProvider.id,
+          },
+          userWorkspaceId,
+        }),
       });
 
-      if (!isDefined(target)) {
+      if (!isDefined(reconnectTarget)) {
         throw new ConnectionProviderException(
-          `Cannot reconnect connectedAccount ${args.reconnectingConnectedAccountId}: not found in this workspace for the requested provider.`,
+          `Cannot reconnect connectedAccount ${args.reconnectingConnectedAccountId}: not found in this workspace for the requested provider, or not usable by this member.`,
           ConnectionProviderExceptionCode.FORBIDDEN,
         );
       }
     }
+
+    await this.appConnectionAccessService.validateCallerCanManageConnection({
+      isWorkspaceShared:
+        args.visibility === 'workspace' ||
+        reconnectTarget?.visibility === 'workspace',
+      workspaceId,
+      userWorkspaceId,
+    });
 
     const { clientId } =
       await this.oauthProviderService.getClientCredentials(connectionProvider);
@@ -143,9 +161,10 @@ export class ConnectionProviderOAuthFlowService {
   async completeAuthorizationFlow(args: CallbackArgs): Promise<CallbackResult> {
     const statePayload = await this.verifyState(args.state);
 
-    const provider = await this.oauthProviderService.findOneByIdOrThrow(
-      statePayload.connectionProviderId,
-    );
+    const provider = await this.oauthProviderService.findOneByIdOrThrow({
+      id: statePayload.connectionProviderId,
+      workspaceId: statePayload.workspaceId,
+    });
 
     assertOAuthProvider(provider);
 
@@ -178,14 +197,29 @@ export class ConnectionProviderOAuthFlowService {
       );
     }
 
+    const identifiedAccount =
+      await this.connectionProviderLifecycleHookService.runIdentifyAccount({
+        provider,
+        workspaceId: statePayload.workspaceId,
+        accessToken: tokenResponse.accessToken,
+      });
+
     const connectedAccount = await this.persistConnectedAccount({
       provider,
       tokenResponse,
+      identifiedAccount,
       workspaceId: statePayload.workspaceId,
+      userId: statePayload.userId,
       userWorkspaceId: statePayload.userWorkspaceId,
       visibility: statePayload.visibility,
       reconnectingConnectedAccountId:
         statePayload.reconnectingConnectedAccountId,
+    });
+
+    await this.connectionProviderLifecycleHookService.dispatchOnConnect({
+      provider,
+      workspaceId: statePayload.workspaceId,
+      connectedAccountId: connectedAccount.id,
     });
 
     return {
@@ -229,17 +263,48 @@ export class ConnectionProviderOAuthFlowService {
     return this.twentyConfigService.get('SERVER_URL');
   }
 
+  private async resolveConnectedAccountHandle({
+    tokenResponse,
+    userId,
+  }: {
+    tokenResponse: TokenExchangeResponse;
+    userId: string;
+  }): Promise<string> {
+    const idTokenEmail = isDefined(tokenResponse.idToken)
+      ? extractEmailFromIdTokenClaims(tokenResponse.idToken)
+      : null;
+
+    if (isDefined(idTokenEmail)) {
+      return idTokenEmail;
+    }
+
+    const user = await this.userRepository.findOneBy({ id: userId });
+
+    if (!isDefined(user)) {
+      throw new ConnectionProviderException(
+        'User not found',
+        ConnectionProviderExceptionCode.INVALID_STATE,
+      );
+    }
+
+    return user.email;
+  }
+
   private async persistConnectedAccount({
     provider,
     tokenResponse,
+    identifiedAccount,
     workspaceId,
+    userId,
     userWorkspaceId,
     visibility,
     reconnectingConnectedAccountId,
   }: {
     provider: OAuthConnectionProvider;
     tokenResponse: TokenExchangeResponse;
+    identifiedAccount: IdentifiedAccount | null;
     workspaceId: string;
+    userId: string;
     userWorkspaceId: string;
     visibility: 'user' | 'workspace';
     reconnectingConnectedAccountId: string | null;
@@ -247,9 +312,18 @@ export class ConnectionProviderOAuthFlowService {
     const { encryptedAccessToken, encryptedRefreshToken } =
       this.connectedAccountTokenEncryptionService.encryptTokenPair({
         accessToken: tokenResponse.accessToken,
-        refreshToken: tokenResponse.refreshToken,
+        refreshToken: isDefined(tokenResponse.refreshToken)
+          ? tokenResponse.refreshToken
+          : null,
         workspaceId,
       });
+
+    const handle =
+      identifiedAccount?.handle ??
+      (await this.resolveConnectedAccountHandle({
+        tokenResponse,
+        userId,
+      }));
 
     const sharedFields = {
       accessToken: encryptedAccessToken,
@@ -257,21 +331,46 @@ export class ConnectionProviderOAuthFlowService {
       scopes: tokenResponse.scopes ?? provider.oauthConfig.scopes,
       lastCredentialsRefreshedAt: new Date(),
       authFailedAt: null,
+      authFailedReason: null,
       visibility,
+      handle,
+      externalAccountId: identifiedAccount?.externalAccountId ?? null,
     };
 
     if (isDefined(reconnectingConnectedAccountId)) {
-      // Workspace-scope both the update and the read so a foreign id can't
-      // leak through findOneByOrFail.
-      await this.connectedAccountRepository.update(
-        { id: reconnectingConnectedAccountId, workspaceId },
-        sharedFields,
-      );
-
-      return this.connectedAccountRepository.findOneByOrFail({
+      const reconnectTarget = {
         id: reconnectingConnectedAccountId,
         workspaceId,
-      });
+      };
+
+      // Compared and written in one statement so overlapping reconnects cannot pin different accounts.
+      const updateResult = await this.connectedAccountRepository.update(
+        isDefined(identifiedAccount)
+          ? [
+              { ...reconnectTarget, externalAccountId: IsNull() },
+              {
+                ...reconnectTarget,
+                externalAccountId: identifiedAccount.externalAccountId,
+              },
+            ]
+          : reconnectTarget,
+        { ...sharedFields, userWorkspaceId },
+      );
+
+      const connectedAccount =
+        await this.connectedAccountRepository.findOneByOrFail(reconnectTarget);
+
+      if (updateResult.affected === 0 && isDefined(identifiedAccount)) {
+        const authorizedAccountHandle =
+          identifiedAccount.handle ?? identifiedAccount.externalAccountId;
+
+        throw new ConnectionProviderException(
+          `You authorized ${authorizedAccountHandle}, but this connection belongs to ${connectedAccount.handle}. Reconnect with ${connectedAccount.handle}, or add a new connection for ${authorizedAccountHandle}.`,
+          ConnectionProviderExceptionCode.RECONNECT_ACCOUNT_MISMATCH,
+        );
+      }
+
+      return connectedAccount;
     }
 
     const existingCount = await this.connectedAccountRepository.count({
@@ -282,7 +381,6 @@ export class ConnectionProviderOAuthFlowService {
 
     const created = this.connectedAccountRepository.create({
       ...sharedFields,
-      handle: name,
       name,
       visibility,
       provider: ConnectedAccountProvider.APP,

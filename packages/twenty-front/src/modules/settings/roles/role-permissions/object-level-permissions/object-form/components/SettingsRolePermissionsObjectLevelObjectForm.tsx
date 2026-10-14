@@ -1,3 +1,6 @@
+import { NavigationButton } from '@/ui/input/components/NavigationButton';
+import { getCoreAgentBreadcrumbLinks } from '@/object-core/agents/utils/getCoreAgentBreadcrumbLinks';
+import { getCoreAgentLink } from '@/object-core/agents/utils/getCoreAgentLink';
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { useObjectMetadataItemById } from '@/object-metadata/hooks/useObjectMetadataItemById';
 import { mapRLSOperandToRecordFilterOperand } from '@/object-record/record-filter/utils/mapRLSOperandToRecordFilterOperand';
@@ -6,10 +9,11 @@ import { SettingsRolePermissionsObjectLevelObjectFieldPermissionTable } from '@/
 import { SettingsRolePermissionsObjectLevelObjectFormObjectLevel } from '@/settings/roles/role-permissions/object-level-permissions/object-form/components/SettingsRolePermissionsObjectLevelObjectFormObjectLevel';
 import { SettingsRolePermissionsObjectLevelRecordLevelSection } from '@/settings/roles/role-permissions/object-level-permissions/record-level-permissions/components/SettingsRolePermissionsObjectLevelRecordLevelSection';
 import { settingsDraftRoleFamilyState } from '@/settings/roles/states/settingsDraftRoleFamilyState';
-import { SubMenuTopBarContainer } from '@/ui/layout/page/components/SubMenuTopBarContainer';
+import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
+import { SettingsWizardStepBar } from '@/settings/components/layout/SettingsWizardStepBar';
 import { useAtomFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilyStateValue';
 import { t } from '@lingui/core/macro';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { SettingsPath } from 'twenty-shared/types';
 import {
@@ -17,10 +21,10 @@ import {
   isDefined,
   isRecordFilterValueValid,
 } from 'twenty-shared/utils';
-import { Button } from 'twenty-ui/input';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { useQuery } from '@apollo/client/react';
+import { checkIfBillingEntitlementIsEnabledOnWorkspace } from '@/workspace/utils/checkIfBillingEntitlementIsEnabledOnWorkspace';
 import {
-  type BillingEntitlement,
   BillingEntitlementKey,
   FindOneAgentDocument,
 } from '~/generated-metadata/graphql';
@@ -35,6 +39,7 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
   objectMetadataId,
 }: SettingsRolePermissionsObjectLevelObjectFormProps) => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const fromAgentId = searchParams.get('fromAgent');
 
   const currentWorkspace = useAtomStateValue(currentWorkspaceState);
@@ -53,14 +58,11 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
     objectId: objectMetadataId,
   });
 
-  const workspaceBillingEntitlements = currentWorkspace?.billingEntitlements;
-
   const isRLSBillingEntitlementEnabled =
-    workspaceBillingEntitlements?.some(
-      (entitlement: BillingEntitlement) =>
-        entitlement.key === BillingEntitlementKey.RLS &&
-        entitlement.value === true,
-    ) ?? false;
+    checkIfBillingEntitlementIsEnabledOnWorkspace(
+      BillingEntitlementKey.RLS,
+      currentWorkspace,
+    );
 
   const objectMetadataItem = objectMetadata.objectMetadataItem;
 
@@ -71,29 +73,14 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
 
   const breadcrumbLinks =
     fromAgentId && isDefined(agent)
-      ? [
-          {
-            children: t`Workspace`,
-            href: getSettingsPath(SettingsPath.Workspace),
-          },
-          {
-            children: t`AI`,
-            href: getSettingsPath(SettingsPath.AI),
-          },
-          {
-            children: agent.label,
-            href: getSettingsPath(SettingsPath.AiAgentDetail, {
-              agentId: agent.id,
-            }),
-          },
-          {
-            children: t`Permissions · ${objectLabelSingular}`,
-          },
-        ]
+      ? getCoreAgentBreadcrumbLinks([
+          { children: agent.label, href: getCoreAgentLink(agent.id) },
+          { children: t`Permissions · ${objectLabelSingular}` },
+        ])
       : [
           {
             children: t`Workspace`,
-            href: getSettingsPath(SettingsPath.Workspace),
+            href: getSettingsPath(SettingsPath.General),
           },
           {
             children: t`Members`,
@@ -116,8 +103,15 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
 
   const finishButtonPath =
     fromAgentId && isDefined(agent)
-      ? getSettingsPath(SettingsPath.AiAgentDetail, { agentId: agent.id })
+      ? getCoreAgentLink(agent.id)
       : getSettingsPath(SettingsPath.RoleDetail, { roleId });
+
+  const previousStepPath = `${getSettingsPath(SettingsPath.RoleAddObjectLevel, {
+    roleId,
+  })}${fromAgentId ? `?fromAgent=${fromAgentId}` : ''}`;
+
+  const headerTitle =
+    fromAgentId && isDefined(agent) ? agent.label : settingsDraftRole.label;
 
   const objectPredicates =
     settingsDraftRole.rowLevelPermissionPredicates?.filter(
@@ -138,17 +132,23 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
   const isFinishDisabled = hasInvalidPredicate;
 
   return (
-    <SubMenuTopBarContainer
-      title={t`2. Set ${objectLabelPlural} permissions`}
+    <SettingsPageLayout
+      title={headerTitle}
+      titleColor={themeCssVariables.font.color.tertiary}
       links={breadcrumbLinks}
-      actionButton={
-        <Button
-          title={t`Finish`}
-          variant="secondary"
-          size="small"
-          accent="blue"
-          to={isFinishDisabled ? undefined : finishButtonPath}
-          disabled={isFinishDisabled}
+      secondaryBar={
+        <SettingsWizardStepBar
+          label={t`2. Set ${objectLabelPlural} permissions`}
+          onBack={() => navigate(previousStepPath)}
+          trailing={
+            <NavigationButton
+              size="sm"
+              to={finishButtonPath}
+              disabled={isFinishDisabled}
+              variant="solid"
+              color="accent"
+            >{t`Finish`}</NavigationButton>
+          }
         />
       }
     >
@@ -167,6 +167,6 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
           hasOrganizationPlan={isRLSBillingEntitlementEnabled}
         />
       </SettingsPageContainer>
-    </SubMenuTopBarContainer>
+    </SettingsPageLayout>
   );
 };

@@ -13,10 +13,19 @@ type LoggedEventMatcher = {
   checked?: boolean;
   key?: string;
   code?: string;
+  inputType?: string;
+  data?: string;
+  clipboardText?: string;
   shiftKey?: boolean;
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
+  clientX?: number;
+  clientY?: number;
+  offsetX?: number;
+  offsetY?: number;
+  movementX?: number;
+  movementY?: number;
   files?: { name?: string; type?: string }[];
 };
 

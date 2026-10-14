@@ -12,14 +12,17 @@ import { isRecordTableRowActiveComponentFamilyState } from '@/object-record/reco
 import { isRecordTableRowFocusActiveComponentState } from '@/object-record/record-table/states/isRecordTableRowFocusActiveComponentState';
 import { isRecordTableRowFocusedComponentFamilyState } from '@/object-record/record-table/states/isRecordTableRowFocusedComponentFamilyState';
 import { isRecordTableScrolledVerticallyComponentState } from '@/object-record/record-table/states/isRecordTableScrolledVerticallyComponentState';
-import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
+import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
+import { DropdownRoot } from '@/ui/layout/dropdown/components/DropdownRoot';
+import { GenericDropdownContentWidth } from '@/ui/layout/dropdown/constants/GenericDropdownContentWidth';
 import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
 import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorValue';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { cx } from '@linaria/core';
-import { useContext } from 'react';
-import { IconPlus } from 'twenty-ui/display';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { t } from '@lingui/core/macro';
+import { Dropdown } from 'twenty-ui/components/navigation';
+import { IconPlus } from 'twenty-ui/icon';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 const StyledPlusIconHeaderCell = styled.div<{
   shouldDisplayBorderBottom: boolean;
@@ -41,8 +44,10 @@ const StyledPlusIconHeaderCell = styled.div<{
   width: ${RECORD_TABLE_COLUMN_ADD_COLUMN_BUTTON_WIDTH}px;
   z-index: 1;
 
-  &:hover {
-    background: ${themeCssVariables.background.secondary};
+  @media (hover: hover) {
+    &:hover {
+      background: ${themeCssVariables.background.secondary};
+    }
   }
 `;
 
@@ -60,7 +65,7 @@ const StyledDropdownContainer = styled.div`
 `;
 
 export const RecordTableHeaderAddColumnButton = () => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   const isRecordTableRowActive = useAtomComponentFamilyStateValue(
     isRecordTableRowActiveComponentFamilyState,
@@ -93,7 +98,7 @@ export const RecordTableHeaderAddColumnButton = () => {
     !isFirstRowActiveOrFocused ||
     isRecordTableScrolledVertically;
 
-  const { visibleRecordFields } = useRecordTableContextOrThrow();
+  const { visibleRecordFields, recordTableId } = useRecordTableContextOrThrow();
 
   return (
     <StyledPlusIconHeaderCell
@@ -108,16 +113,24 @@ export const RecordTableHeaderAddColumnButton = () => {
         position="left"
       />
       <StyledDropdownContainer>
-        <Dropdown
-          dropdownId={HIDDEN_TABLE_COLUMN_DROPDOWN_ID}
-          clickableComponent={
-            <StyledPlusIconContainer>
-              <IconPlus size={theme.icon.size.md} />
-            </StyledPlusIconContainer>
-          }
-          dropdownComponents={<RecordTableHeaderPlusButtonContent />}
-          dropdownPlacement="bottom-start"
-        />
+        <DropdownRoot
+          dropdownId={`${HIDDEN_TABLE_COLUMN_DROPDOWN_ID}-${recordTableId}`}
+          type="picker"
+        >
+          <Dropdown.Trigger
+            render={<StyledPlusIconContainer />}
+            nativeButton={false}
+            aria-label={t`Add column`}
+          >
+            <IconPlus size={theme.icon.size.md} />
+          </Dropdown.Trigger>
+          <DropdownContent
+            align="start"
+            width={GenericDropdownContentWidth.Medium}
+          >
+            <RecordTableHeaderPlusButtonContent />
+          </DropdownContent>
+        </DropdownRoot>
       </StyledDropdownContainer>
     </StyledPlusIconHeaderCell>
   );

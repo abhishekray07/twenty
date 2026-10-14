@@ -20,34 +20,43 @@ describe('useRefetchAggregateQueries', () => {
   });
 
   it('should refetch queries', async () => {
-    // Arrange
     const objectMetadataNamePlural = 'opportunities';
     const expectedQueryName = getAggregateQueryName(objectMetadataNamePlural);
     const expectedQueryNameGroupBy = getGroupByAggregateQueryName({
       objectMetadataNamePlural,
     });
 
-    // Act
     const { result } = renderHook(() => useRefetchAggregateQueries());
     await result.current.refetchAggregateQueries({ objectMetadataNamePlural });
 
-    // Assert
     expect(mockRefetchQueries).toHaveBeenCalledTimes(1);
     expect(mockRefetchQueries).toHaveBeenCalledWith({
       include: [expectedQueryName, expectedQueryNameGroupBy],
+      onQueryUpdated: expect.any(Function),
     });
   });
 
+  it('should not refetch skipped queries', async () => {
+    const { result } = renderHook(() => useRefetchAggregateQueries());
+    await result.current.refetchAggregateQueries({
+      objectMetadataNamePlural: 'opportunities',
+    });
+
+    const { onQueryUpdated } = mockRefetchQueries.mock.calls[0][0];
+
+    expect(onQueryUpdated({ options: { fetchPolicy: 'standby' } })).toBe(false);
+    expect(onQueryUpdated({ options: { fetchPolicy: 'cache-first' } })).toBe(
+      true,
+    );
+  });
+
   it('should handle errors during refetch', async () => {
-    // Arrange
     const error = new Error('Refetch failed');
     mockRefetchQueries.mockRejectedValue(error);
     const objectMetadataNamePlural = 'opportunities';
 
-    // Act
     const { result } = renderHook(() => useRefetchAggregateQueries());
 
-    // Assert
     await expect(
       result.current.refetchAggregateQueries({ objectMetadataNamePlural }),
     ).rejects.toThrow('Refetch failed');

@@ -1,13 +1,12 @@
-import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
+import { createBundledSourcePlugin } from './vite.bundled-source-plugin';
+
 export default defineConfig({
-  plugins: [
-    tsconfigPaths({
-      root: __dirname,
-      ignoreConfigErrors: true,
-    }),
-  ],
+  plugins: [createBundledSourcePlugin()],
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     name: 'twenty-sdk-integration',
     environment: 'node',
