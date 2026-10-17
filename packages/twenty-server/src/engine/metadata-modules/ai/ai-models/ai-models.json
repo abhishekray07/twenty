@@ -2043,6 +2043,18 @@
         "supportsReasoning": true
       },
       {
+        "name": "gemini-4-argon",
+        "label": "Gemini 4 Argon",
+        "modelFamily": "GEMINI",
+        "inputCostPerMillionTokens": 2,
+        "outputCostPerMillionTokens": 10,
+        "cachedInputCostPerMillionTokens": 0.1,
+        "contextWindowTokens": 1048576,
+        "maxOutputTokens": 32768,
+        "modalities": ["image", "video", "audio", "pdf"],
+        "supportsReasoning": true
+      },
+      {
         "name": "gemini-3.1-flash-lite",
         "label": "Gemini 3.1 Flash Lite",
         "modelFamily": "GEMINI",
